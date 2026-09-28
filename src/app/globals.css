@@ -1,0 +1,180 @@
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  /* Brand Colors - Yellow / White / Dark */
+  --brand: #FBBF24;          /* Primary yellow */
+  --brand-light: #FDE68A;    /* Lighter yellow */
+  --brand-dark: #F59E0B;     /* Darker yellow/orange */
+  --brand-subtle: #FFFBEB;   /* Very light yellow */
+  
+  --brand-orange: #F97316;   /* Small orange accent */
+
+/* Light Theme (Default for now) */
+  --bg-primary: #ffffff;      /* White background */
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-input: #F5EFE6;        /* Slightly warm grey for inputs */
+
+  /* Text */
+  --text-primary: #050505;
+  --text-secondary: #65676b;
+  --text-muted: #8a8d91;
+
+  /* Borders */
+  --border: rgba(0,0,0,0.09);
+  --border-active: var(--brand);
+
+  /* Nav Pill */
+  --nav-bg: rgba(255, 255, 255, 0.9);
+  --nav-border: rgba(0, 0, 0, 0.08);
+  --nav-text: #1a1a1a;
+  --nav-active-bg: var(--brand-subtle);
+
+  /* Status */
+  --online: #22c55e;
+
+  /* Sizing */
+  --nav-height: 64px;
+  --header-height: 60px;
+  --max-width: 430px;
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-full: 9999px;
+}
+
+[data-theme="dark"] {
+  --bg-primary: #0d0d0d;
+  --bg-secondary: #1a1a1a;
+  --bg-card: #1e1e1e;
+  --bg-elevated: #252525;
+  --bg-input: #2a2a2a;
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0a0;
+  --text-muted: #606060;
+  --border: rgba(255,255,255,0.07);
+  --border-active: var(--brand);
+
+  /* Nav Pill Dark */
+  --nav-bg: rgba(26, 26, 26, 0.92);
+  --nav-border: rgba(255, 255, 255, 0.08);
+  --nav-text: #ffffff;
+  --nav-active-bg: rgba(255, 255, 255, 0.1);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  height: 100%;
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+  line-height: 1.55;
+  letter-spacing: -0.01em;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100%;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  position: relative;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* All headings and UI elements also use Sora */
+h1, h2, h3, h4, h5, h6, button, input, textarea, .title, .sectionLabel, .label, .chatName, .storyName, .nav {
+  font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+/* Tables and lists naturally inherit body Sora */
+td, th, li, em, i {
+  font-family: inherit;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+/* Utility */
+.gradient-text {
+  color: var(--brand);
+}
+
+.gradient-bg {
+  background: var(--brand);
+}
+
+.gradient-border {
+  border: 1.5px solid var(--brand);
+  background: transparent;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes typing {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.85); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); }
+  25% { transform: scale(1.12); }
+  50% { transform: scale(1); }
+  75% { transform: scale(1.06); }
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-fadeIn { animation: fadeIn 0.4s ease forwards; }
+.animate-slideUp { animation: slideUp 0.5s ease forwards; }
+.animate-scaleIn { animation: scaleIn 0.3s ease forwards; }
+
+/* Tap highlight */
+button, a { -webkit-tap-highlight-color: transparent; }
+button { cursor: pointer; border: none; background: none; }
+a { text-decoration: none; color: inherit; }
+
+/* Safe areas for mobile */
+.safe-top { padding-top: env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+

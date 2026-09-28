@@ -1,0 +1,116 @@
+.container {
+  position: absolute;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  left: 24px;
+  right: 24px;
+  z-index: 50;
+  animation: slideUp 0.4s ease forwards;
+}
+
+.navBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--brand); /* Brand Yellow */
+  border-radius: 100px;
+  height: 66px;
+  padding: 0 8px;
+  position: relative;
+  box-shadow: 0 12px 32px rgba(251, 191, 36, 0.25);
+}
+
+.item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  position: relative;
+  transition: transform 0.2s ease;
+  color: rgba(26,26,26,0.5); /* Semi-transparent black for inactive */
+}
+.item:active { transform: scale(0.9); }
+
+.iconWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+}
+
+.iconWrap svg {
+  width: 22px;
+  height: 22px;
+  transition: color 0.2s ease;
+}
+
+/* Active indicator dash */
+.activeIndicator {
+  position: absolute;
+  bottom: 12px;
+  width: 14px;
+  height: 2.5px;
+  border-radius: 4px;
+  background: #1a1a1a; /* Black dash */
+  animation: scaleIn 0.2s ease forwards;
+}
+
+.active {
+  color: #1a1a1a;
+}
+
+.badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #E8003D; /* Keep badge red or maybe black */
+}
+
+/* Central raised button */
+.centerWrap {
+  position: relative;
+  width: 72px;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.centerCutout {
+  position: absolute;
+  top: -20px;
+  width: 68px;
+  height: 68px;
+  background: var(--brand); /* Brand Yellow */
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.centerBtn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #1a1a1a; /* Black center button */
+  color: #ffffff; /* White icon */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, filter 0.2s ease;
+  box-shadow: 0 4px 12px rgba(255, 77, 117, 0.3);
+}
+
+.centerBtn:active {
+  transform: scale(0.92);
+  filter: brightness(0.9);
+}
+
+.centerBtn svg {
+  width: 24px;
+  height: 24px;
+}
