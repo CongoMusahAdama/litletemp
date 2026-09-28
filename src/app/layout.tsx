@@ -13,12 +13,12 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/icon-192.svg", sizes: "192x192", type: "image/svg+xml" },
-      { url: "/icon-512.svg", sizes: "512x512", type: "image/svg+xml" },
+      { url: "/icon.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon.png", sizes: "512x512", type: "image/png" },
     ],
     apple: [
-      { url: "/icon-192.svg", sizes: "192x192", type: "image/svg+xml" },
-      { url: "/icon-512.svg", sizes: "512x512", type: "image/svg+xml" },
+      { url: "/icon.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon.png", sizes: "512x512", type: "image/png" },
     ],
     shortcut: "/favicon.ico",
   },
@@ -40,9 +40,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="apple-touch-icon" href="/icon-192.svg" sizes="192x192" />
-        <link rel="apple-touch-icon" href="/icon-512.svg" sizes="512x512" />
-        <link rel="mask-icon" href="/icon-192.svg" color="#FBBF24" />
+        <link rel="apple-touch-icon" href="/icon.png" sizes="192x192" />
+        <link rel="apple-touch-icon" href="/icon.png" sizes="512x512" />
+        <link rel="mask-icon" href="/icon.png" color="#FBBF24" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Little Temptation" />
