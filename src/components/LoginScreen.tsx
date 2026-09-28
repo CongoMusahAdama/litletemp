@@ -9,10 +9,11 @@ interface Props {
 }
 
 export default function LoginScreen({ onLogin }: Props) {
-  const [step, setStep] = useState<"intro" | "pick" | "enter" | "connect">("intro");
+  const [step, setStep] = useState<"intro" | "names" | "pick" | "enter">("intro");
   const [who, setWho] = useState<"" | "me" | "babe">("");
   const [pin, setPin] = useState("");
-  const [partnerId, setPartnerId] = useState("");
+  const [myName, setMyName] = useState("");
+  const [partnerName, setPartnerName] = useState("");
   const [shake, setShake] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -35,7 +36,7 @@ export default function LoginScreen({ onLogin }: Props) {
       setLoading(true);
       Swal.fire({
         title: "Welcome back!",
-        text: `So happy to see you, ${who === "me" ? "love 💛" : "babe 🧡"}!`,
+        text: `So happy to see you, ${who === "me" ? myName || "love" : partnerName || "babe"}!`,
         icon: "success",
         confirmButtonColor: "#1a1a1a",
         background: "#ffffff",
@@ -56,9 +57,10 @@ export default function LoginScreen({ onLogin }: Props) {
       setStep("pick");
       setWho("");
       setPin("");
-    } else if (step === "connect") {
-      setStep("pick");
-      setPartnerId("");
+    } else if (step === "names") {
+      setStep("intro");
+      setMyName("");
+      setPartnerName("");
     }
   };
 
@@ -69,24 +71,9 @@ export default function LoginScreen({ onLogin }: Props) {
     }, 300);
   };
 
-  const handleConnect = () => {
-    if (!partnerId.trim()) return;
-    setLoading(true);
-    // Simulate partner connection
-    setTimeout(() => {
-      setLoading(false);
-      Swal.fire({
-        title: "Connected! 💛",
-        text: "Your partner has been notified. You're now linked.",
-        icon: "success",
-        confirmButtonColor: "#FBBF24",
-        background: "#ffffff",
-        color: "#1a1a1a",
-        confirmButtonText: "Continue"
-      }).then(() => {
-        setStep("enter");
-      });
-    }, 1500);
+  const handleNamesContinue = () => {
+    if (!myName.trim() || !partnerName.trim()) return;
+    setStep("pick");
   };
 
   return (
@@ -108,9 +95,9 @@ export default function LoginScreen({ onLogin }: Props) {
               <p className={styles.introSubtitle}>Just You. Just Me. Just Us.</p>
               
               <div className={styles.introLovely}>
-                <span className={styles.lovelyIcon}>💛</span>
+                <span className={styles.lovelyIcon} />
                 <p className={styles.lovelyText}>A private space for two hearts</p>
-                <span className={styles.lovelyIcon}>💛</span>
+                <span className={styles.lovelyIcon} />
               </div>
 
               <p className={styles.introDesc}>
@@ -140,12 +127,71 @@ export default function LoginScreen({ onLogin }: Props) {
               </div>
             </div>
 
-            <button id="btn-get-started" className={styles.getStartedBtn} onClick={() => setStep("pick")}>
+            <button id="btn-get-started" className={styles.getStartedBtn} onClick={() => setStep("names")}>
               Begin Our Journey
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="5" y1="12" x2="19" y2="12" />
                 <polyline points="12 5 19 12 12 19" />
               </svg>
+            </button>
+          </div>
+        ) : step === "names" ? (
+          /* Names Setup Screen */
+          <div className={styles.namesScreen}>
+            <div className={styles.headerPick}>
+              <div className={styles.stepper}>
+                <span className={styles.stepActive} />
+                <span className={styles.stepDot} />
+                <span className={styles.stepDot} />
+                <span className={styles.stepDot} />
+              </div>
+              <h1 className={styles.titlePick}>What should<br/>we call each other?</h1>
+              <p className={styles.subtitlePick}>Your names will appear throughout the app</p>
+            </div>
+
+            <div className={styles.namesForm}>
+              <div className={styles.nameField}>
+                <label className={styles.nameLabel}>Your Name</label>
+                <input
+                  type="text"
+                  className={styles.nameInput}
+                  placeholder="e.g., Sarah, Alex, Mia..."
+                  value={myName}
+                  onChange={e => setMyName(e.target.value)}
+                  autoFocus
+                  maxLength={20}
+                />
+                <span className={styles.nameHint}>This is how you'll see yourself</span>
+              </div>
+
+              <div className={styles.nameField}>
+                <label className={styles.nameLabel}>Partner's Name</label>
+                <input
+                  type="text"
+                  className={styles.nameInput}
+                  placeholder="e.g., James, Emma, Sam..."
+                  value={partnerName}
+                  onChange={e => setPartnerName(e.target.value)}
+                  maxLength={20}
+                />
+                <span className={styles.nameHint}>This is what you'll call them</span>
+              </div>
+
+              <div className={styles.namePreview}>
+                <p>Preview: <strong>{myName || "You"}</strong> & <strong>{partnerName || "Partner"}</strong></p>
+              </div>
+            </div>
+
+            <button id="btn-names-continue" className={styles.getStartedBtn} onClick={handleNamesContinue} disabled={!myName.trim() || !partnerName.trim()}>
+              Continue
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <polyline points="12 5 19 12 12 19" />
+              </svg>
+            </button>
+
+            <button id="btn-back-names" className={styles.backBtn} onClick={handleBack}>
+              Back
             </button>
           </div>
         ) : step === "pick" ? (
@@ -156,9 +202,9 @@ export default function LoginScreen({ onLogin }: Props) {
                 <span className={styles.stepDot} />
                 <span className={styles.stepActive} />
                 <span className={styles.stepDot} />
+                <span className={styles.stepDot} />
               </div>
               <h1 className={styles.titlePick}>Select<br/>who is opening</h1>
-              <p className={styles.subtitlePick}>Or connect with your partner</p>
             </div>
 
             <div className={styles.picks}>
@@ -169,12 +215,12 @@ export default function LoginScreen({ onLogin }: Props) {
               >
                 <div className={styles.cardGraphic}>
                   <div className={styles.graphicCircle}>
-                    <span className={styles.emoji}>👱‍♀️</span>
+                    <span className={styles.emoji} />
                   </div>
                 </div>
                 <div className={styles.cardInfo}>
-                  <h3>It&apos;s Me</h3>
-                  <p>Primary access<br/>Just You.</p>
+                  <h3>It's Me</h3>
+                  <p>Primary access<br/>Just {myName || "You"}.</p>
                 </div>
               </button>
 
@@ -185,89 +231,16 @@ export default function LoginScreen({ onLogin }: Props) {
               >
                 <div className={styles.cardGraphic}>
                   <div className={styles.graphicCircle}>
-                    <span className={styles.emoji}>👱‍♂️</span>
+                    <span className={styles.emoji} />
                   </div>
                 </div>
                 <div className={styles.cardInfo}>
-                  <h3>My Babe</h3>
+                  <h3>My {partnerName || "Partner"}</h3>
                   <p>Partner access<br/>Just Us.</p>
                 </div>
               </button>
             </div>
-
-            {/* Connect Partner Button */}
-            <button id="btn-connect-partner" className={styles.connectBtn} onClick={() => setStep("connect")}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                <circle cx="9" cy="7" r="4" />
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-              </svg>
-              <span>Connect Partner</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="5" y1="12" x2="19" y2="12" />
-                <polyline points="12 5 19 12 12 19" />
-              </svg>
-            </button>
           </>
-        ) : step === "connect" ? (
-          /* Connect Partner Screen - like TeamViewer/UltraViewer */
-          <div className={styles.connectScreen}>
-            <div className={styles.headerPick}>
-              <div className={styles.stepper}>
-                <span className={styles.stepDot} />
-                <span className={styles.stepActive} />
-                <span className={styles.stepDot} />
-              </div>
-              <h1 className={styles.titlePick}>Connect<br/>Partner</h1>
-              <p className={styles.subtitleLeft}>Enter your partner&apos;s ID to link your spaces</p>
-            </div>
-
-            <div className={styles.connectCard}>
-              <div className={styles.connectIcon}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-              </div>
-              <p className={styles.connectTitle}>Partner ID</p>
-              <p className={styles.connectDesc}>Your partner can find their ID in Settings → Profile</p>
-              
-              <input
-                id="input-partner-id"
-                type="text"
-                className={styles.partnerIdInput}
-                placeholder="Enter Partner ID"
-                value={partnerId}
-                onChange={e => setPartnerId(e.target.value.toUpperCase())}
-                maxLength={8}
-                autoFocus
-                style={{ textTransform: "uppercase" }}
-              />
-
-              <button id="btn-confirm-connect" className={styles.connectConfirmBtn} onClick={handleConnect} disabled={!partnerId.trim() || loading}>
-                {loading ? (
-                  <>
-                    <span className={styles.spinner} />
-                    Connecting...
-                  </>
-                ) : (
-                  "Connect"
-                )}
-              </button>
-            </div>
-
-            <div className={styles.connectInfo}>
-              <p>🔒 <strong>Secure connection</strong> — Your data stays private between you two.</p>
-              <p>📱 <strong>Works like TeamViewer</strong> — Enter ID, get connected instantly.</p>
-            </div>
-
-            <button id="btn-back-connect" className={styles.backBtn} onClick={handleBack}>
-              ← Back
-            </button>
-          </div>
         ) : (
           /* PIN entry */
           <div className={styles.pinArea}>
@@ -276,8 +249,9 @@ export default function LoginScreen({ onLogin }: Props) {
                 <span className={styles.stepDot} />
                 <span className={styles.stepActive} />
                 <span className={styles.stepDot} />
+                <span className={styles.stepDot} />
               </div>
-              <h1 className={styles.titlePick}>Welcome back,<br/>{who === "me" ? "love 💛" : "babe 🧡"}</h1>
+              <h1 className={styles.titlePick}>Welcome back,<br/>{who === "me" ? (myName || "love") : (partnerName || "babe")}</h1>
               <p className={styles.subtitleLeft}>Enter your 4-digit PIN</p>
             </div>
 
@@ -308,7 +282,7 @@ export default function LoginScreen({ onLogin }: Props) {
             </div>
 
             <button id="btn-back" className={styles.backBtn} onClick={handleBack}>
-              ← Not you?
+              Not you?
             </button>
           </div>
         )}

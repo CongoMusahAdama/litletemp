@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import styles from "./JournalTab.module.css";
 
 interface Entry {
@@ -32,23 +32,38 @@ export default function JournalTab() {
   const [showNewEntry, setShowNewEntry] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newBody, setNewBody] = useState("");
+  const [newImage, setNewImage] = useState<string | undefined>(undefined);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setNewImage(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSave = () => {
     if (!newTitle.trim()) return;
     const next: Entry = {
       id: Date.now(),
       title: newTitle,
-      color: "#FBBF24",
-      textColor: "#1a1a1a",
+      color: newImage ? "#1a1a1a" : "#FBBF24",
+      textColor: newImage ? "#ffffff" : "#1a1a1a",
       date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      image: newImage,
     };
     setEntries([next, ...entries]);
     setNewTitle("");
     setNewBody("");
+    setNewImage(undefined);
     setShowNewEntry(false);
   };
 
   const isPhotosView = activeFilter === "Photos";
+  const allPhotoEntries = [...entries.filter(e => e.image), ...photoEntries.filter(pe => !entries.some(e => e.id === pe.id))];
 
   return (
     <div className={styles.tab}>
@@ -80,6 +95,41 @@ export default function JournalTab() {
               onChange={e => setNewBody(e.target.value)}
               rows={6}
             />
+            <div className={styles.photoUploadRow}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleImageUpload}
+                style={{ display: "none" }}
+              />
+              <button
+                type="button"
+                className={styles.photoUploadBtn}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                <span>{newImage ? "Change Photo" : "Add Photo"}</span>
+              </button>
+              {newImage && (
+                <div className={styles.photoPreview}>
+                  <img src={newImage} alt="Preview" />
+                  <button
+                    className={styles.photoRemove}
+                    onClick={() => setNewImage(undefined)}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+            </div>
             <button className={styles.modalSave} onClick={handleSave}>
               Save Entry
             </button>
@@ -115,7 +165,7 @@ export default function JournalTab() {
       <div className={styles.contentScroll}>
         {isPhotosView ? (
           <div className={styles.photoGrid}>
-            {photoEntries.map((entry, idx) => (
+            {allPhotoEntries.map((entry, idx) => (
               <div
                 key={entry.id}
                 className={styles.photoItem}

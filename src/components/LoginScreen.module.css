@@ -578,7 +578,69 @@
 }
 .connectInfo strong { color: var(--text-secondary); }
 
-/* Connect Button on Pick Screen */
+/* Names Setup Screen */
+.namesScreen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  justify-content: space-between;
+  animation: slideUp 0.4s ease;
+}
+
+.namesForm {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 0 20px 20px;
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+.nameField {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nameLabel {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.nameInput {
+  width: 100%;
+  border: 2px solid #f3f4f6;
+  border-radius: 16px;
+  padding: 16px 18px;
+  font-size: 17px;
+  font-weight: 600;
+  font-family: 'Sora', sans-serif;
+  color: #1a1a1a;
+  outline: none;
+  background: #fff;
+  transition: border-color 0.2s;
+}
+.nameInput:focus { border-color: var(--brand); }
+.nameInput::placeholder { color: #d1d5db; }
+
+.nameHint {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.namePreview {
+  margin-top: 8px;
+  padding: 16px;
+  background: var(--brand-subtle, #FFFBEB);
+  border-radius: 16px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+.namePreview strong { color: #1a1a1a; }
 .connectBtn {
   display: inline-flex;
   align-items: center;
