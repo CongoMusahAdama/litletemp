@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { NamesProvider } from "@/context/NamesContext";
 
 export const metadata: Metadata = {
   title: "Little Temptation — Just You. Just Me. Just Us.",
@@ -50,7 +51,9 @@ export default function RootLayout({
         <meta name="msapplication-TileColor" content="#FBBF24" />
       </head>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <NamesProvider>{children}</NamesProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
