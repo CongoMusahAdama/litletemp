@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { io } from "socket.io-client";
 import styles from "./ChatsTab.module.css";
-import { api, mediaUrl, shownName, uploadFile } from "@/lib/api";
+import { API_URL, api, getToken, mediaUrl, shownName, uploadFile } from "@/lib/api";
 import { useSession } from "@/context/SessionContext";
 
 interface Props {
@@ -18,12 +19,17 @@ type Summary = {
   partnerOnline: boolean;
 };
 
+type StoryComment = { id: string; name: string; text: string; mine: boolean };
+
 type Story = {
   id: string;
   authorId: string;
   mediaUrl: string;
   mediaType: "image" | "video";
   seen: boolean;
+  liked?: boolean;
+  likeCount?: number;
+  comments?: StoryComment[];
 };
 
 export default function ChatsTab({ onOpenChat }: Props) {
@@ -31,6 +37,7 @@ export default function ChatsTab({ onOpenChat }: Props) {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [stories, setStories] = useState<Story[]>([]);
   const [watching, setWatching] = useState<Story | null>(null);
+  const [comment, setComment] = useState("");
   const [adding, setAdding] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -38,6 +45,14 @@ export default function ChatsTab({ onOpenChat }: Props) {
     refresh().catch(() => undefined);
     api<Summary>("/api/chat/summary").then(setSummary).catch(() => undefined);
     api<Story[]>("/api/stories").then(setStories).catch(() => undefined);
+    const socket = io(API_URL, { auth: { token: getToken() } });
+    const apply = (story: Story) => {
+      setStories((prev) => prev.some((item) => item.id === story.id) ? prev.map((item) => item.id === story.id ? story : item) : [story, ...prev]);
+      setWatching((current) => current && current.id === story.id ? story : current);
+    };
+    socket.on("story:updated", apply);
+    socket.on("story:new", apply);
+    return () => { socket.disconnect(); };
   }, []);
 
   const mine = stories.filter((story) => String(story.authorId) === String(user?.id));
@@ -62,10 +77,32 @@ export default function ChatsTab({ onOpenChat }: Props) {
 
   const openStory = (story: Story) => {
     setWatching(story);
+    setComment("");
     if (!story.seen && String(story.authorId) !== String(user?.id)) {
       api(`/api/stories/${story.id}/seen`, { method: "POST" }).catch(() => undefined);
       setStories((prev) => prev.map((item) => item.id === story.id ? { ...item, seen: true } : item));
     }
+  };
+
+  const likeStory = async () => {
+    if (!watching) return;
+    const story = await api<Story>(`/api/stories/${watching.id}/like`, { method: "POST" }).catch(() => null);
+    if (!story) return;
+    setWatching(story);
+    setStories((prev) => prev.map((item) => item.id === story.id ? story : item));
+  };
+
+  const sendComment = async () => {
+    if (!watching || !comment.trim()) return;
+    const text = comment.trim();
+    setComment("");
+    const story = await api<Story>(`/api/stories/${watching.id}/comments`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }).catch(() => null);
+    if (!story) return;
+    setWatching(story);
+    setStories((prev) => prev.map((item) => item.id === story.id ? story : item));
   };
 
   const summaryPartner = summary?.partner && String(summary.partner.id) !== String(user?.id)
@@ -177,11 +214,43 @@ export default function ChatsTab({ onOpenChat }: Props) {
       </div>
 
       {watching && (
-        <div className={styles.viewer} onClick={() => setWatching(null)}>
+        <div className={styles.viewer}>
+          <button type="button" className={styles.viewerClose} onClick={() => setWatching(null)} aria-label="Close story">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
           {watching.mediaType === "video"
-            ? <video src={mediaUrl(watching.mediaUrl)} className={styles.viewerMedia} autoPlay controls onClick={(event) => event.stopPropagation()} />
+            ? <video src={mediaUrl(watching.mediaUrl)} className={styles.viewerMedia} autoPlay playsInline />
             : <img src={mediaUrl(watching.mediaUrl)} alt="" className={styles.viewerMedia} />}
-          <p className={styles.viewerNote}>This story disappears after 24 hours</p>
+          <div className={styles.viewerDock}>
+            <div className={styles.viewerComments}>
+              {(watching.comments || []).slice(-6).map((item) => (
+                <p key={item.id} className={styles.viewerComment}>
+                  <strong>{item.mine ? "You" : item.name}</strong>
+                  {item.text}
+                </p>
+              ))}
+            </div>
+            <form className={styles.viewerRow} onSubmit={(event) => { event.preventDefault(); void sendComment(); }}>
+              <input
+                className={styles.viewerInput}
+                placeholder="Reply to this story"
+                value={comment}
+                onChange={(event) => setComment(event.target.value)}
+              />
+              <button type="submit" className={styles.viewerSend} aria-label="Send comment">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 11.5l17-8-7 18-2.2-7.2L3 11.5z" /></svg>
+              </button>
+              <button type="button" className={`${styles.viewerHeart} ${watching.liked ? styles.viewerHeartOn : ""}`} onClick={() => void likeStory()} aria-label="Like story">
+                <svg viewBox="0 0 24 24" fill={watching.liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                </svg>
+                {!!watching.likeCount && <span>{watching.likeCount}</span>}
+              </button>
+            </form>
+          </div>
         </div>
       )}
     </div>

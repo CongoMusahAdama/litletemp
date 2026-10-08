@@ -74,28 +74,129 @@
 
 .viewer {
   position: fixed;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 40;
-  max-width: 430px;
-  margin: 0 auto;
-  background: #1a1a1a;
+  width: min(100%, 430px);
+  background: #111;
   display: flex;
   flex-direction: column;
+}
+
+.viewerClose {
+  position: absolute;
+  top: calc(10px + env(safe-area-inset-top));
+  left: 12px;
+  z-index: 2;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  display: flex;
   align-items: center;
   justify-content: center;
 }
 
+.viewerClose svg { width: 20px; height: 20px; }
+
 .viewerMedia {
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  max-height: 80%;
   object-fit: contain;
+  background: #111;
 }
 
-.viewerNote {
-  margin-top: 16px;
+.viewerDock {
+  flex-shrink: 0;
+  padding: 8px 12px calc(12px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.72) 28%);
+}
+
+.viewerComments {
+  max-height: 150px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.viewerComment {
+  margin: 0;
   color: #fff;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.35;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 8px 12px;
+}
+
+.viewerComment strong {
+  display: block;
+  font-size: 12px;
+  color: #fbbf24;
+  margin-bottom: 2px;
+}
+
+.viewerRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.viewerInput {
+  flex: 1;
+  min-width: 0;
+  height: 46px;
+  border: 0;
+  border-radius: 23px;
+  padding: 0 16px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+}
+
+.viewerInput::placeholder { color: rgba(255, 255, 255, 0.72); }
+
+.viewerSend, .viewerHeart {
+  width: 46px;
+  height: 46px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.viewerSend svg, .viewerHeart svg { width: 22px; height: 22px; }
+
+.viewerHeartOn { color: #fb7185; background: #fff; }
+
+.viewerHeart span {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  background: #fb7185;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
 }
 
 .storyRing {

@@ -7,14 +7,30 @@ const router = express.Router();
 router.use(requireAuth, requireCouple);
 
 function present(story, viewerId) {
+  const me = String(viewerId);
   return {
     id: story._id,
     authorId: story.authorId,
     mediaUrl: story.mediaUrl,
     mediaType: story.mediaType,
     expiresAt: story.expiresAt,
-    seen: story.seenBy.some((id) => String(id) === String(viewerId)),
+    seen: story.seenBy.some((id) => String(id) === me),
+    liked: (story.likes || []).some((id) => String(id) === me),
+    likeCount: (story.likes || []).length,
+    comments: (story.comments || []).map((comment) => ({
+      id: comment._id,
+      name: comment.name || '',
+      text: comment.text,
+      mine: String(comment.userId) === me,
+    })),
   };
+}
+
+function pushStory(req, story) {
+  const payload = present(story, req.user._id);
+  const io = getIo();
+  if (io) io.to(`couple:${req.couple._id}`).emit('story:updated', payload);
+  return payload;
 }
 
 router.get('/', async (req, res, next) => {
@@ -58,6 +74,40 @@ router.post('/:id/seen', async (req, res, next) => {
       await story.save();
     }
     res.json(present(story, req.user._id));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/:id/like', async (req, res, next) => {
+  try {
+    const story = await Story.findOne({ _id: req.params.id, coupleId: req.couple._id, expiresAt: { $gt: new Date() } });
+    if (!story) return res.status(404).json({ error: 'Story not found' });
+    const me = String(req.user._id);
+    const already = (story.likes || []).some((id) => String(id) === me);
+    story.likes = already
+      ? story.likes.filter((id) => String(id) !== me)
+      : [...(story.likes || []), req.user._id];
+    await story.save();
+    res.json(pushStory(req, story));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/:id/comments', async (req, res, next) => {
+  try {
+    const text = String(req.body.text || '').trim().slice(0, 200);
+    if (!text) return res.status(400).json({ error: 'Write a comment' });
+    const story = await Story.findOne({ _id: req.params.id, coupleId: req.couple._id, expiresAt: { $gt: new Date() } });
+    if (!story) return res.status(404).json({ error: 'Story not found' });
+    story.comments.push({
+      userId: req.user._id,
+      name: req.user.username || req.user.name,
+      text,
+    });
+    await story.save();
+    res.status(201).json(pushStory(req, story));
   } catch (error) {
     next(error);
   }
