@@ -113,6 +113,8 @@ export default function ChatView({ onBack }: Props) {
         } else {
           void showHomeBadge();
         }
+      } else {
+        playSendTick();
       }
     });
     socket.on("message:updated", (data: ServerMessage) => {
@@ -829,6 +831,31 @@ function noteAudio() {
   if (!noteContext) noteContext = new Context();
   if (noteContext.state === "suspended") void noteContext.resume();
   return noteContext;
+}
+
+function playSendTick() {
+  const context = noteAudio();
+  if (!context) return;
+  const sound = () => {
+    const now = context.currentTime;
+    const osc = context.createOscillator();
+    const gain = context.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(1480, now);
+    osc.frequency.exponentialRampToValueAtTime(480, now + 0.07);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.11, now + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+    osc.connect(gain);
+    gain.connect(context.destination);
+    osc.start(now);
+    osc.stop(now + 0.1);
+  };
+  if (context.state === "suspended") {
+    void context.resume().then(sound);
+    return;
+  }
+  sound();
 }
 
 function playMessageNote() {
