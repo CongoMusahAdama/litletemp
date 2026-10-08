@@ -14,8 +14,14 @@ export type Tab = "chats" | "journal" | "mood" | "more" | "action";
 export default function AppShell() {
   const [activeTab, setActiveTab] = useState<Tab>("chats");
   const [chatOpen, setChatOpen] = useState(true); // open chat immediately
+  const [triggerEntry, setTriggerEntry] = useState(0);
 
   const handleTabChange = (tab: Tab) => {
+    if (tab === "action") {
+      setActiveTab("journal");
+      setTriggerEntry(Date.now());
+      return;
+    }
     setActiveTab(tab);
     // When switching away and back to chats, reopen chat directly
     if (tab === "chats") setChatOpen(true);
@@ -24,16 +30,13 @@ export default function AppShell() {
   return (
     <div className={styles.shell}>
       <main className={`${styles.main} ${!chatOpen ? styles.mainWithNav : ""}`}>
-        <div className={styles.lovelyText}>
-          ✨ Keep your streak alive — every day counts ✨
-        </div>
         {activeTab === "chats" && !chatOpen && (
           <ChatsTab onOpenChat={() => setChatOpen(true)} />
         )}
         {activeTab === "chats" && chatOpen && (
           <ChatView onBack={() => setChatOpen(false)} />
         )}
-        {activeTab === "journal" && <JournalTab />}
+        {activeTab === "journal" && <JournalTab triggerNewEntry={triggerEntry} />}
         {activeTab === "mood" && <MoodTab />}
         {activeTab === "more" && <MoreTab />}
       </main>

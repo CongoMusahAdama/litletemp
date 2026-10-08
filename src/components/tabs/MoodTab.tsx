@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import styles from "./MoodTab.module.css";
+import { api } from "@/lib/api";
 
 // SVG face component — expression changes per mood
 function MoodFace({ mood }: { mood: string }) {
@@ -163,7 +164,25 @@ export default function MoodTab() {
   const [activeView, setActiveView] = useState<TabType>("This Week");
   const [picking, setPicking] = useState(false);
   const [sent, setSent] = useState(false);
+  const [insights, setInsights] = useState({ mostFrequent: "Happy", partnerTop: "In Love", streak: 0 });
+  const [monthMoods, setMonthMoods] = useState<Record<string, string>>({});
   const todayIdx = (new Date().getDay() + 6) % 7;
+
+  useEffect(() => {
+    api<{ dates: string[]; mine: Record<string, string> }>("/api/moods?range=week")
+      .then((data) => {
+        setWeekMoods(data.dates.map((date) => data.mine[date] || null));
+        const todayKey = new Date().toISOString().slice(0, 10);
+        const current = data.mine[todayKey];
+        const match = moods.find((item) => item.label === current);
+        if (match) setTodayMood(match);
+      })
+      .catch(() => undefined);
+    api<typeof insights>("/api/moods/insights").then(setInsights).catch(() => undefined);
+    api<{ mine: Record<string, string> }>("/api/moods?range=month")
+      .then((data) => setMonthMoods(data.mine))
+      .catch(() => undefined);
+  }, []);
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long", month: "short", day: "numeric",
@@ -179,6 +198,9 @@ export default function MoodTab() {
     setPicking(false);
     setSent(true);
     setTimeout(() => setSent(false), 2000);
+    api("/api/moods", { method: "POST", body: JSON.stringify({ mood: m.label }) })
+      .then(() => api<typeof insights>("/api/moods/insights").then(setInsights))
+      .catch(() => undefined);
   };
 
   return (
@@ -284,17 +306,17 @@ export default function MoodTab() {
             <div className={styles.insightRow}>
               <div className={styles.insightCard}>
                 <span className={styles.insightLabel}>Most frequent</span>
-                <div className={styles.insightFace}><MoodFace mood="Happy" /></div>
-                <strong className={styles.insightVal}>Happy</strong>
+                <div className={styles.insightFace}><MoodFace mood={insights.mostFrequent || "Neutral"} /></div>
+                <strong className={styles.insightVal}>{insights.mostFrequent || "—"}</strong>
               </div>
               <div className={styles.insightCard}>
                 <span className={styles.insightLabel}>Babe&apos;s top mood</span>
-                <div className={styles.insightFace}><MoodFace mood="In Love" /></div>
-                <strong className={styles.insightVal}>In Love</strong>
+                <div className={styles.insightFace}><MoodFace mood={insights.partnerTop || "Neutral"} /></div>
+                <strong className={styles.insightVal}>{insights.partnerTop || "—"}</strong>
               </div>
               <div className={styles.insightCard}>
                 <span className={styles.insightLabel}>Streak</span>
-                <div className={styles.streakNum}>5</div>
+                <div className={styles.streakNum}>{insights.streak}</div>
                 <strong className={styles.insightVal}>days</strong>
               </div>
             </div>
@@ -302,7 +324,17 @@ export default function MoodTab() {
         )}
 
         {activeView === "This Month" && (
-          <p className={styles.comingSoon}>Monthly view coming soon ✨</p>
+          <div className={styles.weekRow}>
+            {Object.entries(monthMoods).map(([date, mood]) => (
+              <div key={date} className={styles.dayCol}>
+                <span className={styles.dayLetter}>{date.slice(-2)}</span>
+                <div className={styles.dayCircle}>
+                  <div className={styles.miniMoodFace}><MoodFace mood={mood} /></div>
+                </div>
+              </div>
+            ))}
+            {Object.keys(monthMoods).length === 0 && <p className={styles.comingSoon}>No check-ins this month yet</p>}
+          </div>
         )}
       </div>
 

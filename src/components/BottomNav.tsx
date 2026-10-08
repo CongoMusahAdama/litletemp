@@ -2,6 +2,7 @@
 
 import { Tab } from "./AppShell";
 import styles from "./BottomNav.module.css";
+import Swal from "sweetalert2";
 
 interface Props {
   active: Tab;
@@ -74,7 +75,10 @@ export default function BottomNav({ active, onChange }: Props) {
             return (
               <div key="center" className={styles.centerWrap}>
                 <div className={styles.centerCutout}>
-                  <button className={styles.centerBtn}>
+                  <button 
+                    className={styles.centerBtn}
+                    onClick={() => onChange("action")}
+                  >
                     {tab.icon}
                   </button>
                 </div>

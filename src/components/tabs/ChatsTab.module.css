@@ -72,6 +72,32 @@
 }
 .storyAddBtn svg { width: 22px; height: 22px; }
 
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  max-width: 430px;
+  margin: 0 auto;
+  background: #1a1a1a;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.viewerMedia {
+  width: 100%;
+  max-height: 80%;
+  object-fit: contain;
+}
+
+.viewerNote {
+  margin-top: 16px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .storyRing {
   width: 64px;
   height: 64px;

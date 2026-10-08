@@ -323,6 +323,90 @@
   margin-bottom: 4px;
 }
 
+.dayScreen {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dayHero {
+  padding: 28px 22px 24px;
+  border-radius: 28px;
+  background: linear-gradient(180deg, #fff4c8 0%, #ffe08a 100%);
+  text-align: center;
+}
+
+.dayHeart {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 22px;
+  background: #1a1a1a;
+  color: #ffe14a;
+  font-size: 30px;
+}
+
+.dayCount {
+  margin: 16px 0 6px;
+  color: #1a1a1a;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+}
+
+.dayHint {
+  margin: 0;
+  color: #4a4336;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.dayField {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 18px;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(120, 80, 10, 0.08);
+}
+
+.dayField span {
+  color: #8a6410;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dayField input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #1a1a1a;
+  font-family: "Sora", sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.daySave {
+  height: 52px;
+  border-radius: 100px;
+  background: #1a1a1a;
+  color: #ffe14a;
+  font-family: "Sora", sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.daySave:disabled {
+  opacity: 0.4;
+}
+
 .editField input {
   width: 100%;
   border: none;

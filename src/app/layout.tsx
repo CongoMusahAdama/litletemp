@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { NamesProvider } from "@/context/NamesContext";
+import { SessionProvider } from "@/context/SessionContext";
 
 export const metadata: Metadata = {
   title: "Little Temptation — Just You. Just Me. Just Us.",
@@ -52,7 +53,9 @@ export default function RootLayout({
       </head>
       <body>
         <ThemeProvider>
-          <NamesProvider>{children}</NamesProvider>
+          <SessionProvider>
+            <NamesProvider>{children}</NamesProvider>
+          </SessionProvider>
         </ThemeProvider>
       </body>
     </html>

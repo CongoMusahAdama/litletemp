@@ -1,8 +1,11 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import styles from "./MoreTab.module.css";
 import Swal from "sweetalert2";
+import { api, mediaUrl, uploadFile } from "@/lib/api";
+import { useSession } from "@/context/SessionContext";
+import { useTheme } from "@/context/ThemeContext";
 
 const menuItems = [
   {
@@ -94,34 +97,133 @@ const menuItems = [
   },
 ];
 
+function anniversaryLabel(value: string) {
+  if (!value) return "Pick a date";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const picked = new Date(`${value}T00:00:00`);
+  const days = Math.round((picked.getTime() - today.getTime()) / 86400000);
+  if (days > 0) return `${days} days to go`;
+  if (days === 0) return "That's today";
+  return `${Math.abs(days)} days together`;
+}
+
 export default function MoreTab() {
-  const [avatarSrc, setAvatarSrc] = useState("https://ui-avatars.com/api/?name=C+K&background=FBBF24&color=1a1a1a&size=200&bold=true");
-  const [name] = useState("Charlotte King");
-  const [username] = useState("@charlotteking");
+  const { user, refresh, logout, couple } = useSession();
+  const { theme, setTheme } = useTheme();
+  const [panel, setPanel] = useState<string | null>(null);
+  const [favourites, setFavourites] = useState<{ id: string; title: string; date: string }[]>([]);
+  const [bucketItems, setBucketItems] = useState<{ id: string; title: string; completed: boolean }[]>([]);
+  const [pin, setPin] = useState("");
+  const [anniversary, setAnniversary] = useState("");
+  const fallbackAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "Us")}&background=FBBF24&color=1a1a1a&size=200&bold=true`;
+  const [avatarSrc, setAvatarSrc] = useState(fallbackAvatar);
+  const [name, setName] = useState(user?.name || "");
+  const [username, setUsername] = useState(user?.username ? `@${user.username}` : "");
   const [isEditing, setIsEditing] = useState(false);
-  const [editName, setEditName] = useState("Charlotte King");
-  const [editUsername, setEditUsername] = useState("@charlotteking");
+  const [editName, setEditName] = useState(user?.name || "");
+  const [editUsername, setEditUsername] = useState(user?.username ? `@${user.username}` : "");
+  const [stats, setStats] = useState({ memories: 0, bucket: 0, daysToGo: null as number | null });
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      setAvatarSrc(URL.createObjectURL(e.target.files[0]));
+  useEffect(() => {
+    if (!user) return;
+    setName(user.name);
+    setUsername(user.username ? `@${user.username}` : "");
+    setEditName(user.name);
+    setEditUsername(user.username ? `@${user.username}` : "");
+    setAvatarSrc(user.avatarUrl ? mediaUrl(user.avatarUrl) : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=FBBF24&color=1a1a1a&size=200&bold=true`);
+  }, [user]);
+
+  useEffect(() => {
+    api<typeof stats>("/api/me/stats").then(setStats).catch(() => undefined);
+  }, []);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const uploaded = await uploadFile(file);
+      setAvatarSrc(mediaUrl(uploaded.url));
+      await api("/api/me", { method: "PATCH", body: JSON.stringify({ avatarUrl: uploaded.url }) });
+      await refresh();
+    } catch {
+      setAvatarSrc(URL.createObjectURL(file));
+    }
+  };
+
+  const openPanel = (id: string) => {
+    setPanel(id);
+    if (id === "favourites") {
+      api<{ id: string; title: string; date: string }[]>("/api/journal?favorite=true")
+        .then(setFavourites)
+        .catch(() => setFavourites([]));
+    }
+    if (id === "bucket") {
+      api<{ id: string; title: string; completed: boolean }[]>("/api/bucket")
+        .then(setBucketItems)
+        .catch(() => setBucketItems([]));
+    }
+    if (id === "anniversary" && couple?.anniversary) {
+      setAnniversary(String(couple.anniversary).slice(0, 10));
+    }
+  };
+
+  const saveSetting = async (body: Record<string, unknown>, path = "/api/me") => {
+    await api(path, { method: "PATCH", body: JSON.stringify(body) });
+    await refresh();
+    if (path === "/api/me/couple") {
+      const next = await api<typeof stats>("/api/me/stats");
+      setStats(next);
+    }
+  };
+
+  const saveProfile = async () => {
+    try {
+      await api("/api/me", {
+        method: "PATCH",
+        body: JSON.stringify({ name: editName, username: editUsername }),
+      });
+      setName(editName);
+      setUsername(editUsername.startsWith("@") || !editUsername ? editUsername : `@${editUsername}`);
+      await refresh();
+      setIsEditing(false);
+    } catch (error) {
+      Swal.fire({ title: "Could not save", text: error instanceof Error ? error.message : "Try again", icon: "error" });
     }
   };
 
   const handleLogout = () => {
     Swal.fire({
-      title: "Log out?",
-      text: "Are you sure you want to leave our space?",
-      icon: "warning",
+      title: "Logging Out?",
+      text: "Please tell your partner why you are logging out before you go:",
+      input: "text",
+      inputPlaceholder: "e.g., Going to sleep, Phone dying...",
+      icon: "question",
       showCancelButton: true,
       confirmButtonColor: "#FBBF24",
-      confirmButtonText: "Yes, log out",
+      confirmButtonText: "Confirm Logout",
       cancelButtonColor: "#1a1a1a",
       background: "#fff",
       color: "#1a1a1a",
-    }).then((r) => {
-      if (r.isConfirmed) window.location.reload();
+      inputValidator: (value) => {
+        if (!value) {
+          return "You need to provide a reason for your partner!";
+        }
+      }
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        await api("/api/me/logout", { method: "POST", body: JSON.stringify({ reason: result.value }) });
+        await Swal.fire({
+          title: "Notified",
+          text: "Your partner has been notified.",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false
+        });
+        logout();
+        window.location.reload();
+      }
     });
   };
 
@@ -135,7 +237,7 @@ export default function MoreTab() {
             </svg>
           </button>
           <h1 className={styles.pageTitle}>Edit Profile</h1>
-          <button className={styles.saveBtn} onClick={() => setIsEditing(false)}>Save</button>
+          <button className={styles.saveBtn} onClick={saveProfile}>Save</button>
         </div>
         <div className={styles.editContent}>
           <div className={styles.editAvatarArea}>
@@ -164,12 +266,112 @@ export default function MoreTab() {
     );
   }
 
+  if (panel) {
+    const title = menuItems.find((item) => item.id === panel)?.label || "Bucket list";
+    return (
+      <div className={styles.tab}>
+        <div className={styles.editHeader}>
+          <button className={styles.headerIconBtn} onClick={() => setPanel(null)}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+          <h1 className={styles.pageTitle}>{title}</h1>
+          <span style={{ width: 36 }} />
+        </div>
+        <div className={styles.editContent}>
+          {panel === "favourites" && (
+            favourites.length === 0
+              ? <p className={styles.footer}>No saved memories yet. Heart a journal entry to keep it here.</p>
+              : favourites.map((entry) => (
+                <div key={entry.id} className={styles.editField}><label>{entry.date}</label><p>{entry.title}</p></div>
+              ))
+          )}
+          {panel === "bucket" && (
+            bucketItems.length === 0
+              ? <p className={styles.footer}>Your bucket list is empty.</p>
+              : bucketItems.map((item) => (
+                <div key={item.id} className={styles.editField}><p>{item.completed ? "Done" : "Open"} · {item.title}</p></div>
+              ))
+          )}
+          {panel === "notifications" && (
+            <div className={styles.editForm}>
+              <button className={styles.editProfileBtn} onClick={() => saveSetting({ notifications: !(user?.notifications !== false) }).then(() => setPanel(null))}>
+                {user?.notifications === false ? "Turn notifications on" : "Turn notifications off"}
+              </button>
+            </div>
+          )}
+          {panel === "language" && (
+            <div className={styles.editForm}>
+              {["English", "French", "Spanish", "Twi"].map((language) => (
+                <button key={language} className={styles.menuRow} onClick={() => saveSetting({ language }).then(() => setPanel(null))}>
+                  <span className={styles.menuLabel}>{language}</span>
+                  {user?.language === language && <span>✓</span>}
+                </button>
+              ))}
+            </div>
+          )}
+          {panel === "privacy" && (
+            <div className={styles.editForm}>
+              <div className={styles.editField}>
+                <label>New PIN</label>
+                <input type="password" inputMode="numeric" maxLength={6} value={pin} placeholder="4 to 6 digits" onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} />
+              </div>
+              <button className={styles.editProfileBtn} onClick={() => saveSetting({ pin }).then(() => { setPin(""); setPanel(null); }).catch((error) => Swal.fire({ title: "Could not save PIN", text: error instanceof Error ? error.message : "Try again", icon: "error" }))}>
+                Save PIN
+              </button>
+            </div>
+          )}
+          {panel === "anniversary" && (
+            <div className={styles.dayScreen}>
+              <div className={styles.dayHero}>
+                <span className={styles.dayHeart}>♥</span>
+                <p className={styles.dayCount}>{anniversaryLabel(anniversary)}</p>
+                <p className={styles.dayHint}>The day that belongs to just the two of you.</p>
+              </div>
+              <label className={styles.dayField}>
+                <span>Our day</span>
+                <input type="date" value={anniversary} onChange={(e) => setAnniversary(e.target.value)} />
+              </label>
+              <button
+                className={styles.daySave}
+                disabled={!anniversary}
+                onClick={() => saveSetting({ anniversary }, "/api/me/couple").then(() => setPanel(null))}
+              >
+                Save our day
+              </button>
+            </div>
+          )}
+          {panel === "theme" && (
+            <div className={styles.editForm}>
+              {(["light", "dark"] as const).map((mode) => (
+                <button key={mode} className={styles.menuRow} onClick={() => { setTheme(mode); saveSetting({ theme: mode }).then(() => setPanel(null)); }}>
+                  <span className={styles.menuLabel}>{mode === "light" ? "Light mode" : "Dark mode"}</span>
+                  {theme === mode && <span>✓</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const subs: Record<string, string> = {
+    favourites: "Saved memories",
+    notifications: user?.notifications === false ? "Off" : "All on",
+    language: user?.language || "English",
+    privacy: user?.hasPin ? "PIN is on" : "Set a PIN",
+    anniversary: stats.daysToGo == null ? "Set your date" : `${stats.daysToGo} days to go`,
+    theme: theme === "dark" ? "Dark mode" : "Light mode",
+  };
+
   return (
     <div className={styles.tab}>
       {/* Header */}
       <div className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>My Profile</h1>
-        <button className={styles.headerIconBtn}>
+        <button className={styles.headerIconBtn} onClick={() => openPanel("theme")} aria-label="Appearance">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="3" />
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
@@ -201,20 +403,20 @@ export default function MoreTab() {
 
         {/* Stats row */}
         <div className={styles.statsRow}>
-          <div className={styles.statItem}>
-            <span className={styles.statNum}>48</span>
+          <button className={styles.statItem} onClick={() => openPanel("favourites")}>
+            <span className={styles.statNum}>{stats.memories}</span>
             <span className={styles.statLabel}>Memories</span>
-          </div>
+          </button>
           <div className={styles.statDivider} />
-          <div className={styles.statItem}>
-            <span className={styles.statNum}>12</span>
+          <button className={styles.statItem} onClick={() => openPanel("bucket")}>
+            <span className={styles.statNum}>{stats.bucket}</span>
             <span className={styles.statLabel}>Bucket List</span>
-          </div>
+          </button>
           <div className={styles.statDivider} />
-          <div className={styles.statItem}>
-            <span className={styles.statNum}>42</span>
+          <button className={styles.statItem} onClick={() => openPanel("anniversary")}>
+            <span className={styles.statNum}>{stats.daysToGo ?? "—"}</span>
             <span className={styles.statLabel}>Days to Go</span>
-          </div>
+          </button>
         </div>
 
         {/* Menu */}
@@ -224,6 +426,7 @@ export default function MoreTab() {
               key={item.id}
               className={styles.menuRow}
               style={{ borderBottom: i < menuItems.length - 1 ? "1px solid #f3f4f6" : "none" }}
+              onClick={() => openPanel(item.id)}
             >
               <div className={styles.menuIconBox} style={{ background: item.iconBg }}>
                 <span style={{ color: item.iconColor, width: 20, height: 20, display: "flex" }}>
@@ -232,7 +435,7 @@ export default function MoreTab() {
               </div>
               <div className={styles.menuText}>
                 <span className={styles.menuLabel}>{item.label}</span>
-                <span className={styles.menuSub}>{item.sub}</span>
+                <span className={styles.menuSub}>{subs[item.id] || item.sub}</span>
               </div>
               <svg className={styles.chevron} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="9 18 15 12 9 6" />
