@@ -21,7 +21,14 @@ router.patch('/', async (req, res, next) => {
       req.user.name = clean;
     }
     if (username !== undefined) {
-      const clean = String(username).trim().replace(/^@/, '').slice(0, 32);
+      const clean = String(username).trim().replace(/^@/, '').toLowerCase().slice(0, 20);
+      if (clean && !/^[a-z0-9_]{3,20}$/.test(clean)) {
+        return res.status(400).json({ error: 'Usernames need 3 to 20 letters or numbers' });
+      }
+      if (clean) {
+        const taken = await User.findOne({ username: clean, _id: { $ne: req.user._id } });
+        if (taken) return res.status(409).json({ error: 'That username is taken. Choose a different one.' });
+      }
       req.user.username = clean || undefined;
     }
     if (avatarUrl !== undefined) req.user.avatarUrl = String(avatarUrl).slice(0, 500);

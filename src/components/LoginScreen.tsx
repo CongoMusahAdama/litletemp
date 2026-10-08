@@ -14,12 +14,17 @@ export default function LoginScreen({ onLogin }: Props) {
   const { refresh } = useSession();
   const [step, setStep] = useState<"intro" | "action_choice" | "start_names" | "share_code" | "join_code">("intro");
   const [myName, setMyName] = useState("");
+  const [myUsername, setMyUsername] = useState("");
   const [partnerName, setPartnerName] = useState("");
+  const [partnerUsername, setPartnerUsername] = useState("");
   const [pairingCode, setPairingCode] = useState("");
   const [generatedCode, setGeneratedCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [taken, setTaken] = useState<{ mine: boolean; partner: boolean }>({ mine: false, partner: false });
+
+  const usernameReady = (value: string) => /^[a-z0-9_]{3,20}$/.test(value.trim().toLowerCase());
 
   const handleStartNew = () => {
     setStep("start_names");
@@ -30,12 +35,12 @@ export default function LoginScreen({ onLogin }: Props) {
   };
 
   const generateCode = async () => {
-    if (!myName.trim() || !partnerName.trim()) return;
+    if (!myName.trim() || !partnerName.trim() || !usernameReady(myUsername) || !usernameReady(partnerUsername)) return;
     setLoading(true);
     try {
       const data = await api<{ token: string; returning?: boolean; couple: { inviteCode: string } }>("/api/auth/start", {
         method: "POST",
-        body: JSON.stringify({ myName, partnerName }),
+        body: JSON.stringify({ myName, myUsername, partnerName, partnerUsername }),
       });
       setToken(data.token);
       if (data.returning) {
@@ -63,12 +68,12 @@ export default function LoginScreen({ onLogin }: Props) {
   };
 
   const verifyJoinCode = async () => {
-    if (!myName.trim() || pairingCode.length < 4) return;
+    if (!myName.trim() || !usernameReady(myUsername) || pairingCode.length < 4) return;
     setLoading(true);
     try {
       const data = await api<{ token: string; returning?: boolean }>("/api/auth/join", {
         method: "POST",
-        body: JSON.stringify({ myName, pairingCode }),
+        body: JSON.stringify({ myName, myUsername, pairingCode }),
       });
       setToken(data.token);
       await refresh();
@@ -90,6 +95,26 @@ export default function LoginScreen({ onLogin }: Props) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const handles = [myUsername, partnerUsername];
+    if (!handles.some((value) => usernameReady(value))) return;
+    const timer = setTimeout(async () => {
+      const next = { mine: false, partner: false };
+      await Promise.all(handles.map(async (value, index) => {
+        if (!usernameReady(value)) return;
+        try {
+          const data = await api<{ taken: boolean }>(`/api/auth/username?username=${encodeURIComponent(value.trim().toLowerCase())}`);
+          if (index === 0) next.mine = data.taken;
+          else next.partner = data.taken;
+        } catch {
+          // The submit check still catches a taken username.
+        }
+      }));
+      setTaken(next);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [myUsername, partnerUsername]);
 
   useEffect(() => {
     if (!waiting) return;
@@ -267,6 +292,19 @@ export default function LoginScreen({ onLogin }: Props) {
               </div>
 
               <div className={styles.nameField}>
+                <label className={styles.nameLabel}>Your Username</label>
+                <input
+                  type="text"
+                  className={styles.nameInput}
+                  placeholder="e.g., sarah"
+                  value={myUsername}
+                  onChange={e => setMyUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+                  autoCapitalize="none"
+                />
+                {taken.mine && <p className={styles.nameHint}>This username is taken. Choose a different one, unless it is already yours.</p>}
+              </div>
+
+              <div className={styles.nameField}>
                 <label className={styles.nameLabel}>Partner's Name</label>
                 <input
                   type="text"
@@ -276,12 +314,25 @@ export default function LoginScreen({ onLogin }: Props) {
                   onChange={e => setPartnerName(e.target.value)}
                 />
               </div>
+
+              <div className={styles.nameField}>
+                <label className={styles.nameLabel}>Partner's Username</label>
+                <input
+                  type="text"
+                  className={styles.nameInput}
+                  placeholder="e.g., james"
+                  value={partnerUsername}
+                  onChange={e => setPartnerUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+                  autoCapitalize="none"
+                />
+                {taken.partner && <p className={styles.nameHint}>This username is taken. Choose a different one, unless it is already theirs.</p>}
+              </div>
             </div>
 
             <button 
               className={styles.getStartedBtn} 
               onClick={generateCode} 
-              disabled={!myName.trim() || !partnerName.trim() || loading}
+              disabled={!myName.trim() || !partnerName.trim() || !usernameReady(myUsername) || !usernameReady(partnerUsername) || myUsername.trim().toLowerCase() === partnerUsername.trim().toLowerCase() || loading}
             >
               {loading ? "Generating..." : "Create Invite Code"}
             </button>
@@ -338,7 +389,7 @@ export default function LoginScreen({ onLogin }: Props) {
                 <span className={styles.stepDot} />
               </div>
               <h1 className={styles.titlePick}>Join your partner</h1>
-              <p className={styles.subtitlePick}>Enter your name and the code you received.</p>
+              <p className={styles.subtitlePick}>Enter your name, your username, and the code you received.</p>
             </div>
 
             <div className={styles.namesForm}>
@@ -351,6 +402,19 @@ export default function LoginScreen({ onLogin }: Props) {
                   value={myName}
                   onChange={e => setMyName(e.target.value)}
                 />
+              </div>
+
+              <div className={styles.nameField}>
+                <label className={styles.nameLabel}>Your Username</label>
+                <input
+                  type="text"
+                  className={styles.nameInput}
+                  placeholder="e.g., james"
+                  value={myUsername}
+                  onChange={e => setMyUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+                  autoCapitalize="none"
+                />
+                {taken.mine && <p className={styles.nameHint}>This username is taken. Choose a different one, unless it is already yours.</p>}
               </div>
 
               <div className={styles.nameField}>
@@ -369,7 +433,7 @@ export default function LoginScreen({ onLogin }: Props) {
             <button 
               className={styles.connectConfirmBtn} 
               onClick={verifyJoinCode} 
-              disabled={!myName.trim() || pairingCode.length < 4 || loading}
+              disabled={!myName.trim() || !usernameReady(myUsername) || pairingCode.length < 4 || loading}
               style={{ width: "calc(100% - 40px)", margin: "0 auto 20px" }}
             >
               {loading ? <div className={styles.spinner} /> : "Connect"}

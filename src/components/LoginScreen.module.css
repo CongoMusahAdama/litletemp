@@ -898,12 +898,15 @@
 
 .namesForm {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 18px;
   padding: 0 20px 20px;
   max-width: 360px;
   margin: 0 auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .nameField {
@@ -916,6 +919,13 @@
   font-size: 14px;
   font-weight: 700;
   color: var(--text-primary);
+}
+
+.nameHint {
+  font-size: 12px;
+  font-weight: 650;
+  color: #be123c;
+  line-height: 1.35;
 }
 
 .nameInput {

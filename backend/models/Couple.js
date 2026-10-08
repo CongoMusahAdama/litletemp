@@ -4,6 +4,7 @@ const coupleSchema = new mongoose.Schema({
   partner1: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   partner2: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   expectedPartnerName: { type: String, trim: true, maxlength: 40 },
+  expectedPartnerUsername: { type: String, trim: true, lowercase: true, maxlength: 20 },
   inviteCode: { type: String, required: true, unique: true, index: true },
   inviteExpiresAt: { type: Date, required: true },
   status: { type: String, enum: ['pending', 'active'], default: 'pending' },
