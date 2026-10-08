@@ -10,6 +10,7 @@ import ChatView from "./ChatView";
 import styles from "./AppShell.module.css";
 import { useSession } from "@/context/SessionContext";
 import { applyBubble } from "@/lib/bubbles";
+import { playMessageNote } from "@/lib/note";
 import HomeBadge from "./HomeBadge";
 
 export type Tab = "chats" | "journal" | "mood" | "more" | "action";
@@ -25,6 +26,14 @@ export default function AppShell() {
     const saved = user?.bubbleColor || localStorage.getItem("lt_bubble") || "";
     applyBubble(saved);
   }, [user?.bubbleColor]);
+
+  useEffect(() => {
+    const onNote = (event: MessageEvent) => {
+      if (event.data?.type === "message-note") playMessageNote();
+    };
+    navigator.serviceWorker?.addEventListener("message", onNote);
+    return () => navigator.serviceWorker?.removeEventListener("message", onNote);
+  }, []);
 
   useEffect(() => {
     const sync = () => setCovered(document.visibilityState !== "visible");

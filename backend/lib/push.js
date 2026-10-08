@@ -41,10 +41,16 @@ async function notifyPartner(sender, couple, message) {
       : message.type === 'video'
         ? 'Sent a video'
         : 'Sent a voice note';
+  const icon = sender.avatarUrl
+    ? (String(sender.avatarUrl).startsWith('http')
+      ? sender.avatarUrl
+      : `${process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_API_URL || ''}${sender.avatarUrl}`)
+    : '';
   const payload = JSON.stringify({
     unread,
-    title: sender.name || 'Little Temptation',
+    title: sender.username || sender.name || 'Little Temptation',
     body: String(preview).slice(0, 140),
+    icon,
   });
   const remaining = [];
   for (const sub of partner.pushSubscriptions) {

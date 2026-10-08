@@ -8,6 +8,7 @@ import { useSession } from "@/context/SessionContext";
 import EmojiPicker from "./EmojiPicker";
 import { useCoupleCall } from "@/hooks/useCoupleCall";
 import { showHomeBadge } from "@/lib/badge";
+import { noteAudio, playMessageNote, playSendTick } from "@/lib/note";
 
 interface Props {
   onBack: () => void;
@@ -33,6 +34,8 @@ type ServerMessage = Omit<Message, "from"> & { senderId: string };
 
 export default function ChatView({ onBack }: Props) {
   const { user, partner, couple, refresh } = useSession();
+  const partnerRef = useRef(partner);
+  partnerRef.current = partner;
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -112,6 +115,13 @@ export default function ChatView({ onBack }: Props) {
           api("/api/chat/read", { method: "POST" }).catch(() => undefined);
         } else {
           void showHomeBadge();
+          if ("Notification" in window && Notification.permission === "granted") {
+            const person = partnerRef.current;
+            const title = shownName(person, "Little Temptation");
+            const body = data.type === "text" ? (data.text || "New message") : data.type === "image" ? "Sent a photo" : data.type === "video" ? "Sent a video" : "Sent a voice note";
+            const icon = person?.avatarUrl ? mediaUrl(person.avatarUrl) : "/icon.png";
+            new Notification(title, { body: String(body).slice(0, 140), icon, silent: true });
+          }
         }
       } else {
         playSendTick();
@@ -821,61 +831,6 @@ export default function ChatView({ onBack }: Props) {
       </div>
     </div>
   );
-}
-
-let noteContext: AudioContext | null = null;
-
-function noteAudio() {
-  const Context = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!Context) return null;
-  if (!noteContext) noteContext = new Context();
-  if (noteContext.state === "suspended") void noteContext.resume();
-  return noteContext;
-}
-
-function playSendTick() {
-  const context = noteAudio();
-  if (!context) return;
-  const sound = () => {
-    const now = context.currentTime;
-    const osc = context.createOscillator();
-    const gain = context.createGain();
-    osc.type = "triangle";
-    osc.frequency.setValueAtTime(1480, now);
-    osc.frequency.exponentialRampToValueAtTime(480, now + 0.07);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.11, now + 0.008);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
-    osc.connect(gain);
-    gain.connect(context.destination);
-    osc.start(now);
-    osc.stop(now + 0.1);
-  };
-  if (context.state === "suspended") {
-    void context.resume().then(sound);
-    return;
-  }
-  sound();
-}
-
-function playMessageNote() {
-  const context = noteAudio();
-  if (!context) return;
-  const now = context.currentTime;
-  [659.25, 880].forEach((frequency, index) => {
-    const osc = context.createOscillator();
-    const gain = context.createGain();
-    osc.type = "sine";
-    osc.frequency.value = frequency;
-    const start = now + index * 0.11;
-    gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(0.07, start + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.32);
-    osc.connect(gain);
-    gain.connect(context.destination);
-    osc.start(start);
-    osc.stop(start + 0.34);
-  });
 }
 
 function encodeWav(chunks: Float32Array[], sampleRate: number) {
