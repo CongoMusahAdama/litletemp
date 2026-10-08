@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { api, clearToken, getToken, PublicUser, CoupleInfo, setToken } from "@/lib/api";
+import { useTheme } from "@/context/ThemeContext";
 
 type Session = {
   user: PublicUser | null;
@@ -16,6 +17,7 @@ type Session = {
 const SessionContext = createContext<Session | undefined>(undefined);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
+  const { setTheme } = useTheme();
   const [user, setUser] = useState<PublicUser | null>(null);
   const [partner, setPartner] = useState<PublicUser | null>(null);
   const [couple, setCouple] = useState<CoupleInfo | null>(null);
@@ -51,6 +53,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       .catch(() => clearToken())
       .finally(() => setReady(true));
   }, []);
+
+  useEffect(() => {
+    if (user?.theme === "dark" || user?.theme === "light") setTheme(user.theme);
+  }, [user?.theme, setTheme]);
 
   return (
     <SessionContext.Provider value={{ user, partner, couple, ready, refresh, saveSession, logout }}>

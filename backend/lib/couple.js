@@ -7,6 +7,32 @@ function yesterdayKey() {
   return dayKey(date);
 }
 
+function streakView(couple, userId) {
+  const today = dayKey();
+  const yesterday = yesterdayKey();
+  const youAreFirst = String(couple.partner1) === String(userId);
+  const youCheckedIn = (youAreFirst ? couple.partner1ActiveDate : couple.partner2ActiveDate) === today;
+  const partnerCheckedIn = (youAreFirst ? couple.partner2ActiveDate : couple.partner1ActiveDate) === today;
+  const last = couple.lastStreakDate || "";
+  const savedToday = last === today;
+  const stillAlive = last === today || last === yesterday;
+  const stored = couple.currentStreak || 0;
+  let state = "start";
+  let streak = stored;
+  if (stored > 0 && last && !stillAlive) {
+    state = "lost";
+    streak = 0;
+  } else if (savedToday) {
+    state = "saved";
+  } else if (stored > 0 && stillAlive) {
+    state = youCheckedIn && !partnerCheckedIn ? "waiting" : "expiring";
+  }
+  const midnight = new Date();
+  midnight.setUTCHours(24, 0, 0, 0);
+  const hoursLeft = Math.max(1, Math.ceil((midnight.getTime() - Date.now()) / 3600000));
+  return { streak, state, youCheckedIn, partnerCheckedIn, hoursLeft };
+}
+
 async function touchStreak(couple, userId) {
   const today = dayKey();
   const isFirst = String(couple.partner1) === String(userId);
@@ -32,4 +58,4 @@ async function makeInviteCode() {
   throw new Error('Could not create a pairing code');
 }
 
-module.exports = { touchStreak, makeInviteCode };
+module.exports = { touchStreak, makeInviteCode, streakView };

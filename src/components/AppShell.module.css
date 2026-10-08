@@ -1,16 +1,20 @@
 .shell {
   position: fixed;
-  inset: 0;
-  max-width: 430px;
-  margin: 0 auto;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, 430px);
+  height: 100dvh;
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  padding-top: env(safe-area-inset-top);
 }
 
 .main {
   flex: 1;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -18,7 +22,20 @@
 }
 
 .mainWithNav {
-  padding-bottom: calc(88px + env(safe-area-inset-bottom));
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+}
+
+.privacyCover {
+  position: absolute;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #111;
+  color: #ffe14a;
+  font-size: 22px;
+  font-weight: 800;
 }
 
 .lovelyText {

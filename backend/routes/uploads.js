@@ -11,7 +11,7 @@ const storage = multer.diskStorage({
   destination: uploadDir,
   filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase().slice(0, 8);
-    const safe = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.webm', '.mov', '.m4a', '.mp3', '.ogg'].includes(ext) ? ext : '';
+    const safe = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.webm', '.mov', '.m4a', '.mp3', '.ogg', '.wav'].includes(ext) ? ext : '';
     cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${safe}`);
   },
 });

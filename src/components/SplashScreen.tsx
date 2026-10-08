@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import styles from "./SplashScreen.module.css";
 
 interface Props {
@@ -8,10 +8,13 @@ interface Props {
 }
 
 export default function SplashScreen({ onContinue }: Props) {
+  const continueRef = useRef(onContinue);
+  continueRef.current = onContinue;
+
   useEffect(() => {
-    const timer = setTimeout(onContinue, 1800);
+    const timer = setTimeout(() => continueRef.current(), 1800);
     return () => clearTimeout(timer);
-  }, [onContinue]);
+  }, []);
 
   return (
     <div className={styles.splash}>

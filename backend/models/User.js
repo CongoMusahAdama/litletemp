@@ -9,6 +9,12 @@ const userSchema = new mongoose.Schema({
   notifications: { type: Boolean, default: true },
   language: { type: String, default: 'English' },
   theme: { type: String, enum: ['light', 'dark'], default: 'light' },
+  bubbleColor: { type: String, default: '#FBBF24' },
+  pushSubscriptions: [{
+    endpoint: String,
+    p256dh: String,
+    auth: String,
+  }],
 }, { timestamps: true });
 
 userSchema.methods.toPublic = function toPublic() {
@@ -21,6 +27,7 @@ userSchema.methods.toPublic = function toPublic() {
     notifications: this.notifications,
     language: this.language,
     theme: this.theme,
+    bubbleColor: this.bubbleColor || '#FBBF24',
     hasPin: Boolean(this.pinHash),
   };
 };

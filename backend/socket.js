@@ -3,6 +3,7 @@ const User = require('./models/User');
 const { getSecret } = require('./middleware/auth');
 const { presentMessage } = require('./lib/present');
 const { saveMessage } = require('./lib/messages');
+const { startGame, currentGame, clearGame, moveGame, viewGame, touchPlayer } = require('./lib/games');
 
 let io = null;
 const online = new Map();
@@ -49,6 +50,40 @@ function initSocket(server) {
 
     socket.on('typing', (isTyping) => {
       socket.to(room).emit('typing', { userId: user._id, isTyping: Boolean(isTyping) });
+    });
+
+    const pushGame = async () => {
+      const sockets = await io.in(room).fetchSockets();
+      const state = currentGame(user.coupleId);
+      for (const peer of sockets) {
+        peer.emit('game:state', state ? viewGame(state, peer.user._id) : null);
+      }
+    };
+
+    socket.on('game:sync', () => {
+      const state = currentGame(user.coupleId);
+      if (!state) {
+        socket.emit('game:state', null);
+        return;
+      }
+      touchPlayer(state, user._id);
+      pushGame().catch(() => undefined);
+    });
+
+    socket.on('game:start', (kind) => {
+      startGame(user.coupleId, kind, user._id);
+      pushGame().catch(() => undefined);
+    });
+
+    socket.on('game:move', (move) => {
+      if (!currentGame(user.coupleId)) return;
+      moveGame(user.coupleId, user._id, move || {});
+      pushGame().catch(() => undefined);
+    });
+
+    socket.on('game:leave', () => {
+      clearGame(user.coupleId);
+      pushGame().catch(() => undefined);
     });
 
     socket.on('call:signal', (payload) => {

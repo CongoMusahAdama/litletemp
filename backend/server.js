@@ -14,6 +14,7 @@ const wishlistRoutes = require('./routes/wishlist');
 const bucketRoutes = require('./routes/bucket');
 const storyRoutes = require('./routes/stories');
 const uploadRoutes = require('./routes/uploads');
+const pushRoutes = require('./routes/push');
 const { initSocket } = require('./socket');
 
 if (!process.env.JWT_SECRET) {
@@ -48,6 +49,7 @@ app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/bucket', bucketRoutes);
 app.use('/api/stories', storyRoutes);
 app.use('/api/uploads', uploadRoutes);
+app.use('/api/push', pushRoutes);
 
 app.use((error, _req, res, _next) => {
   console.error(error);

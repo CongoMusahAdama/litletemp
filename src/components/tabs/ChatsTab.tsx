@@ -27,7 +27,7 @@ type Story = {
 };
 
 export default function ChatsTab({ onOpenChat }: Props) {
-  const { user, couple } = useSession();
+  const { user, partner, couple, refresh } = useSession();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [stories, setStories] = useState<Story[]>([]);
   const [watching, setWatching] = useState<Story | null>(null);
@@ -35,6 +35,7 @@ export default function ChatsTab({ onOpenChat }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    refresh().catch(() => undefined);
     api<Summary>("/api/chat/summary").then(setSummary).catch(() => undefined);
     api<Story[]>("/api/stories").then(setStories).catch(() => undefined);
   }, []);
@@ -67,7 +68,15 @@ export default function ChatsTab({ onOpenChat }: Props) {
     }
   };
 
-  const partnerName = summary?.partner?.name || couple?.expectedPartnerName || "My Babe";
+  const summaryPartner = summary?.partner && String(summary.partner.id) !== String(user?.id)
+    ? summary.partner.name
+    : "";
+  const invitedName = couple?.expectedPartnerName && couple.expectedPartnerName !== user?.name
+    ? couple.expectedPartnerName
+    : "";
+  const partnerName = partner?.name || summaryPartner || invitedName || "My Babe";
+  const summaryPhoto = summary?.partner && String(summary.partner.id) !== String(user?.id) ? summary.partner.avatarUrl : "";
+  const partnerPhoto = partner?.avatarUrl || summaryPhoto || "";
   const preview = summary?.lastMessage
     ? (summary.lastMessage.text || `[${summary.lastMessage.type}]`)
     : "Say something sweet";
@@ -127,8 +136,8 @@ export default function ChatsTab({ onOpenChat }: Props) {
               <div className={styles.storyAvatar} style={{ background: "var(--brand)", overflow: "hidden" }}>
                 {theirs[0] && theirs[0].mediaType === "image"
                   ? <img src={mediaUrl(theirs[0].mediaUrl)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  : summary?.partner?.avatarUrl
-                  ? <img src={mediaUrl(summary.partner.avatarUrl)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : partner?.avatarUrl || summary?.partner?.avatarUrl
+                  ? <img src={mediaUrl(partner?.avatarUrl || summary?.partner?.avatarUrl || "")} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   : <span>{partnerName.slice(0, 1)}</span>}
               </div>
             </div>
@@ -141,9 +150,13 @@ export default function ChatsTab({ onOpenChat }: Props) {
       <div className={styles.list}>
         <button id="btn-chat-1" className={styles.chatItem} onClick={onOpenChat}>
           <div className={styles.avatarWrap}>
-            <div className={styles.avatar} style={{ background: "var(--brand)" }}>
-              {partnerName.slice(0, 1)}
-            </div>
+            {partnerPhoto ? (
+              <img src={mediaUrl(partnerPhoto)} alt="" className={styles.avatar} />
+            ) : (
+              <div className={styles.avatar} style={{ background: "var(--brand)" }}>
+                {partnerName.slice(0, 1)}
+              </div>
+            )}
             {summary?.partnerOnline && <span className={styles.onlineDot} />}
           </div>
 

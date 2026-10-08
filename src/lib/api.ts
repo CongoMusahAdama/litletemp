@@ -9,6 +9,7 @@ export type PublicUser = {
   notifications: boolean;
   language: string;
   theme: "light" | "dark";
+  bubbleColor?: string;
   hasPin: boolean;
 };
 

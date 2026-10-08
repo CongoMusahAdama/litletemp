@@ -6,6 +6,8 @@ import styles from "./ChatView.module.css";
 import { API_URL, api, getToken, mediaUrl, uploadFile } from "@/lib/api";
 import { useSession } from "@/context/SessionContext";
 import EmojiPicker from "./EmojiPicker";
+import { useCoupleCall } from "@/hooks/useCoupleCall";
+import { showHomeBadge } from "@/lib/badge";
 
 interface Props {
   onBack: () => void;
@@ -30,17 +32,14 @@ interface Message {
 type ServerMessage = Omit<Message, "from"> & { senderId: string };
 
 export default function ChatView({ onBack }: Props) {
-  const { user, partner, couple } = useSession();
+  const { user, partner, couple, refresh } = useSession();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
-  
-  // Call state
-  const [callState, setCallState] = useState<"idle" | "calling" | "connected">("idle");
-  const [callType, setCallType] = useState<"voice" | "video">("voice");
-  const [isMuted, setIsMuted] = useState(false);
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const call = useCoupleCall(socket);
 
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -56,13 +55,28 @@ export default function ChatView({ onBack }: Props) {
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
   const [partnerOnline, setPartnerOnline] = useState(false);
   const [streak, setStreak] = useState(couple?.currentStreak || 0);
+  const [streakState, setStreakState] = useState<"start" | "saved" | "waiting" | "expiring" | "lost">("start");
+  const [streakHours, setStreakHours] = useState(0);
+  const [draftMedia, setDraftMedia] = useState<{ file: File; kind: "image" | "video"; preview: string } | null>(null);
+  const [sendingMedia, setSendingMedia] = useState(false);
+  const [viewer, setViewer] = useState<{ url: string; kind: "image" | "video" } | null>(null);
+  const chatTitle = partner?.name
+    || (couple?.expectedPartnerName && couple.expectedPartnerName !== user?.name ? couple.expectedPartnerName : "")
+    || "My Babe";
   const [streakNote, setStreakNote] = useState("");
 
   // Audio Recording Ref
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const recRef = useRef<{
+    stream: MediaStream;
+    ctx: AudioContext;
+    processor: ScriptProcessorNode;
+    chunks: Float32Array[];
+    started: number;
+  } | null>(null);
   
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
+  const stickToBottom = useRef(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -88,11 +102,17 @@ export default function ChatView({ onBack }: Props) {
 
     const socket = io(API_URL, { auth: { token: getToken() } });
     socketRef.current = socket;
+    setSocket(socket);
     socket.on("message:new", (data: ServerMessage) => {
       setMessages((prev) => prev.some((item) => item.id === String(data.id)) ? prev : [...prev, asView(data)]);
       setIsTyping(false);
       if (String(data.senderId) !== String(user.id)) {
-        api("/api/chat/read", { method: "POST" }).catch(() => undefined);
+        playMessageNote();
+        if (document.visibilityState === "visible") {
+          api("/api/chat/read", { method: "POST" }).catch(() => undefined);
+        } else {
+          void showHomeBadge();
+        }
       }
     });
     socket.on("message:updated", (data: ServerMessage) => {
@@ -107,9 +127,29 @@ export default function ChatView({ onBack }: Props) {
     socket.on("presence", (payload: { userId: string; online: boolean }) => {
       if (String(payload.userId) !== String(user.id)) setPartnerOnline(payload.online);
     });
-    socket.on("streak:updated", (payload: { streak: number }) => setStreak(payload.streak));
+    socket.on("partner:updated", () => {
+      refresh().catch(() => undefined);
+    });
+    socket.on("streak:updated", () => {
+      api<{ streak: number; state: "start" | "saved" | "waiting" | "expiring" | "lost"; hoursLeft: number }>("/api/chat/streak")
+        .then((view) => {
+          setStreak(view.streak);
+          setStreakState(view.state);
+          setStreakHours(view.hoursLeft);
+        })
+        .catch(() => undefined);
+    });
+
+    const markSeen = () => {
+      if (document.visibilityState === "visible") {
+        api("/api/chat/read", { method: "POST" }).catch(() => undefined);
+      }
+    };
+    document.addEventListener("visibilitychange", markSeen);
 
     return () => {
+      document.removeEventListener("visibilitychange", markSeen);
+      setSocket(null);
       socket.disconnect();
     };
   }, [user]);
@@ -119,18 +159,26 @@ export default function ChatView({ onBack }: Props) {
   }, [couple?.wallpaperUrl]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]);
+    api<{ streak: number; state: "start" | "saved" | "waiting" | "expiring" | "lost"; hoursLeft: number }>("/api/chat/streak")
+      .then((view) => {
+        setStreak(view.streak);
+        setStreakState(view.state);
+        setStreakHours(view.hoursLeft);
+      })
+      .catch(() => undefined);
+  }, []);
 
-  // Simulate calling flow
   useEffect(() => {
-    if (callState === "calling") {
-      const timer = setTimeout(() => {
-        setCallState("connected");
-      }, 3000); // 3 seconds to "connect"
-      return () => clearTimeout(timer);
-    }
-  }, [callState]);
+    const unlock = () => { noteAudio(); };
+    window.addEventListener("pointerdown", unlock, { once: true });
+    return () => window.removeEventListener("pointerdown", unlock);
+  }, []);
+
+  useEffect(() => {
+    const list = messagesRef.current;
+    if (!list || !stickToBottom.current) return;
+    list.scrollTop = list.scrollHeight;
+  }, [messages, isTyping]);
 
   const addEmoji = (emoji: string) => {
     const field = messageInputRef.current;
@@ -153,6 +201,7 @@ export default function ChatView({ onBack }: Props) {
       const id = editingMsgId;
       setEditingMsgId(null);
       setInput("");
+      setMessages((prev) => prev.map((item) => item.id === id ? { ...item, text, isEdited: true } : item));
       api(`/api/chat/messages/${id}`, { method: "PATCH", body: JSON.stringify({ text }) }).catch(() => undefined);
       return;
     }
@@ -164,16 +213,29 @@ export default function ChatView({ onBack }: Props) {
     socketRef.current?.emit("message:send", { text: input.trim(), type: "text", replyToId });
   };
 
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>, type: "image" | "video") => {
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>, type: "image" | "video") => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
     setShowAttach(false);
+    setDraftMedia((current) => {
+      if (current) URL.revokeObjectURL(current.preview);
+      return { file, kind: type, preview: URL.createObjectURL(file) };
+    });
+  };
+
+  const sendDraft = async () => {
+    if (!draftMedia || sendingMedia) return;
+    setSendingMedia(true);
     try {
-      const uploaded = await uploadFile(file);
-      socketRef.current?.emit("message:send", { type, mediaUrl: uploaded.url });
+      const uploaded = await uploadFile(draftMedia.file);
+      socketRef.current?.emit("message:send", { type: draftMedia.kind, mediaUrl: uploaded.url });
+      URL.revokeObjectURL(draftMedia.preview);
+      setDraftMedia(null);
     } catch {
-      // The composer stays available if the upload fails.
+      setStreakNote("Could not send that");
+    } finally {
+      setSendingMedia(false);
     }
   };
 
@@ -190,83 +252,77 @@ export default function ChatView({ onBack }: Props) {
     }
   };
 
-  const startCall = (type: "voice" | "video") => {
-    setCallType(type);
-    setCallState("calling");
-    setIsMuted(false);
-  };
-
-  const endCall = () => {
-    setCallState("idle");
-  };
-
   const startRecording = async () => {
-    setIsRecording(true);
-    setRecordingTime(0);
-    audioChunksRef.current = [];
-
+    if (recRef.current) return;
+    const ctx = new AudioContext();
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          audioChunksRef.current.push(e.data);
-        }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+      });
+      if (ctx.state === "suspended") await ctx.resume();
+      const source = ctx.createMediaStreamSource(stream);
+      const processor = ctx.createScriptProcessor(4096, 1, 1);
+      const chunks: Float32Array[] = [];
+      processor.onaudioprocess = (event) => {
+        chunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
       };
-
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        if (recordingTime > 0) {
-          const file = new File([audioBlob], "voice.webm", { type: "audio/webm" });
-          uploadFile(file)
-            .then((uploaded) => socketRef.current?.emit("message:send", { type: "voice", mediaUrl: uploaded.url }))
-            .catch(() => undefined);
-        }
-        
-        // Stop all tracks to release mic
-        stream.getTracks().forEach(track => track.stop());
-      };
-
-      mediaRecorder.start();
-
-      recordingTimerRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 1);
-      }, 1000);
-    } catch (err) {
-      console.error("Microphone access denied or error:", err);
-      setIsRecording(false);
-    }
-  };
-
-  const stopRecording = () => {
-    if (!isRecording) return;
-    setIsRecording(false);
-    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-    
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-      mediaRecorderRef.current.stop();
-    } else {
+      const mute = ctx.createGain();
+      mute.gain.value = 0;
+      source.connect(processor);
+      processor.connect(mute);
+      mute.connect(ctx.destination);
+      const started = Date.now();
+      recRef.current = { stream, ctx, processor, chunks, started };
+      setIsRecording(true);
       setRecordingTime(0);
+      recordingTimerRef.current = setInterval(() => {
+        const rec = recRef.current;
+        if (rec) setRecordingTime(Math.floor((Date.now() - rec.started) / 1000));
+      }, 250);
+    } catch {
+      void ctx.close();
+      setIsRecording(false);
+      setStreakNote("Allow the microphone, then try the voice note again");
     }
   };
 
-  const handleMessageContextMenu = (e: React.MouseEvent | React.TouchEvent, msg: Message) => {
-    e.preventDefault();
-    let clientX, clientY;
-    if ('touches' in e) {
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    } else {
-      clientX = e.clientX;
-      clientY = e.clientY;
+  const finishRecording = async (shouldSend: boolean) => {
+    const rec = recRef.current;
+    recRef.current = null;
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    setIsRecording(false);
+    setRecordingTime(0);
+    if (!rec) return;
+    rec.processor.disconnect();
+    rec.stream.getTracks().forEach((track) => track.stop());
+    const sampleRate = rec.ctx.sampleRate;
+    const chunks = rec.chunks;
+    const seconds = (Date.now() - rec.started) / 1000;
+    await rec.ctx.close();
+    if (!shouldSend) return;
+    if (seconds < 0.4 || chunks.length === 0) {
+      setStreakNote("Hold the note a little longer, then tap send");
+      return;
     }
-    setContextMenu({ msgId: msg.id, x: clientX, y: clientY, isMe: msg.from === "me" });
+    const file = new File([encodeWav(chunks, sampleRate)], "voice.wav", { type: "audio/wav" });
+    try {
+      const uploaded = await uploadFile(file);
+      socketRef.current?.emit("message:send", { type: "voice", mediaUrl: uploaded.url });
+    } catch {
+      setStreakNote("Could not send the voice note");
+    }
+  };
+
+  const menuOpenedAt = useRef(0);
+
+  const openMessageMenu = (msg: Message) => {
+    menuOpenedAt.current = Date.now();
+    setContextMenu({ msgId: msg.id, x: 0, y: 0, isMe: msg.from === "me" });
   };
 
   const handleDeleteMessage = (id: string) => {
     setContextMenu(null);
+    setMessages((prev) => prev.map((item) => item.id === id ? { ...item, isDeleted: true, text: undefined, mediaUrl: undefined } : item));
     api(`/api/chat/messages/${id}`, { method: "DELETE" }).catch(() => undefined);
   };
 
@@ -283,88 +339,107 @@ export default function ChatView({ onBack }: Props) {
     setContextMenu(null);
   };
 
-  // Click outside context menu to close it
-  useEffect(() => {
-    const handleClick = () => setContextMenu(null);
-    window.addEventListener("click", handleClick);
-    return () => window.removeEventListener("click", handleClick);
-  }, []);
-
   return (
     <div className={styles.chatView}>
       
       {/* ── Call Overlay ── */}
-      {callState !== "idle" && (
-        <div className={`${styles.callOverlay} ${callType === "video" ? styles.callOverlayVideo : ""}`}>
-          
-          {callType === "video" && (
-            <img 
-              src="https://images.unsplash.com/photo-1517841905240-472988babdf9?q=80&w=800&auto=format&fit=crop" 
-              className={styles.callVideoBackground} 
-              alt="Video Feed Simulation"
-            />
+      {call.phase !== "idle" && (
+        <div className={`${styles.callOverlay} ${call.callType === "video" ? styles.callOverlayVideo : ""}`}>
+          <audio ref={call.remoteAudioRef} autoPlay playsInline />
+          {call.callType === "video" && (
+            <>
+              <video ref={call.remoteVideoRef} className={styles.remoteVideo} autoPlay playsInline />
+              <video ref={call.localVideoRef} className={styles.localVideo} autoPlay playsInline muted />
+            </>
           )}
 
           <div className={styles.callHeader}>
-            {callType === "voice" && (
+            {call.callType === "voice" && (
               <img
-                src={partner?.avatarUrl ? mediaUrl(partner.avatarUrl) : `https://ui-avatars.com/api/?name=${encodeURIComponent(partner?.name || "Babe")}&background=F97316&color=fff&size=200`}
-                alt="Partner"
+                src={partner?.avatarUrl ? mediaUrl(partner.avatarUrl) : `https://ui-avatars.com/api/?name=${encodeURIComponent(chatTitle)}&background=F97316&color=fff&size=200`}
+                alt=""
                 className={styles.callAvatar}
               />
             )}
-            <h2 className={styles.callName}>{partner?.name || couple?.expectedPartnerName || "My Babe"}</h2>
+            <h2 className={styles.callName}>{chatTitle}</h2>
             <p className={styles.callStatus}>
-              {callState === "calling" ? "Ringing..." : "00:14"}
+              {call.phase === "incoming"
+                ? (call.callType === "video" ? "Incoming video call" : "Incoming voice call")
+                : call.phase === "calling"
+                  ? "Ringing..."
+                  : `${String(Math.floor(call.seconds / 60)).padStart(2, "0")}:${String(call.seconds % 60).padStart(2, "0")}`}
             </p>
           </div>
 
-          <div className={styles.callControls}>
-            <button 
-              className={`${styles.controlBtn} ${isMuted ? styles.controlBtnActive : ""}`}
-              onClick={() => setIsMuted(!isMuted)}
-            >
-              {isMuted ? (
+          {call.phase === "incoming" ? (
+            <div className={styles.callControls}>
+              <button className={`${styles.controlBtn} ${styles.endCallBtn}`} onClick={call.decline} aria-label="Decline">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="1" y1="1" x2="23" y2="23" />
-                  <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" />
-                  <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23" />
-                  <line x1="12" y1="19" x2="12" y2="23" />
-                  <line x1="8" y1="23" x2="16" y2="23" />
+                  <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91" />
+                  <line x1="23" y1="1" x2="1" y2="23" />
                 </svg>
+              </button>
+              <button className={`${styles.controlBtn} ${styles.acceptCallBtn}`} onClick={call.accept} aria-label="Accept">
+                {call.callType === "video" ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="23 7 16 12 23 17 23 7" />
+                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.85A16 16 0 0 0 16 17.09l.1-.1a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          ) : (
+            <div className={styles.callControls}>
+              <button
+                className={`${styles.controlBtn} ${call.muted ? styles.controlBtnActive : ""}`}
+                onClick={call.toggleMute}
+                aria-label={call.muted ? "Unmute" : "Mute"}
+              >
+                {call.muted ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                    <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" />
+                    <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23" />
+                    <line x1="12" y1="19" x2="12" y2="23" />
+                    <line x1="8" y1="23" x2="16" y2="23" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    <line x1="12" y1="19" x2="12" y2="23" />
+                    <line x1="8" y1="23" x2="16" y2="23" />
+                  </svg>
+                )}
+              </button>
+
+              <button className={`${styles.controlBtn} ${styles.endCallBtn}`} onClick={call.hangup} aria-label="End call">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91" />
+                  <line x1="23" y1="1" x2="1" y2="23" />
+                </svg>
+              </button>
+
+              {call.callType === "video" ? (
+                <button
+                  className={`${styles.controlBtn} ${call.cameraOn ? "" : styles.controlBtnActive}`}
+                  onClick={call.toggleCamera}
+                  aria-label={call.cameraOn ? "Turn camera off" : "Turn camera on"}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M23 7l-7 5 7 5V7z" />
+                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                  </svg>
+                </button>
               ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                  <line x1="12" y1="19" x2="12" y2="23" />
-                  <line x1="8" y1="23" x2="16" y2="23" />
-                </svg>
+                <span className={styles.controlSpacer} />
               )}
-            </button>
-            
-            <button className={`${styles.controlBtn} ${styles.endCallBtn}`} onClick={endCall}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91" />
-                <line x1="23" y1="1" x2="1" y2="23" />
-              </svg>
-            </button>
-            
-            {callType === "video" ? (
-              <button className={styles.controlBtn}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M23 7l-7 5 7 5V7z" />
-                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-                </svg>
-              </button>
-            ) : (
-              <button className={styles.controlBtn}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-                </svg>
-              </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -378,7 +453,7 @@ export default function ChatView({ onBack }: Props) {
 
         <div className={styles.avatarWrap}>
           <img
-            src={partner?.avatarUrl ? mediaUrl(partner.avatarUrl) : `https://ui-avatars.com/api/?name=${encodeURIComponent(partner?.name || couple?.expectedPartnerName || "Babe")}&background=F97316&color=fff&size=80`}
+            src={partner?.avatarUrl ? mediaUrl(partner.avatarUrl) : `https://ui-avatars.com/api/?name=${encodeURIComponent(chatTitle)}&background=F97316&color=fff&size=80`}
             alt="Partner"
             className={styles.avatarImg}
           />
@@ -386,13 +461,15 @@ export default function ChatView({ onBack }: Props) {
         </div>
 
         <div className={styles.chatInfo}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <p className={styles.chatName}>{partner?.name || couple?.expectedPartnerName || "My Babe"}</p>
-            <button className={styles.streakBtn} onClick={async () => {
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+            <p className={styles.chatName}>{chatTitle}</p>
+            <button className={`${styles.streakBtn} ${streakState === "expiring" ? styles.streakHot : ""} ${streakState === "lost" ? styles.streakCold : ""}`} onClick={async () => {
               try {
-                const result = await api<{ streak: number; partnerCheckedIn: boolean }>("/api/chat/streak", { method: "POST" });
+                const result = await api<{ streak: number; state: "start" | "saved" | "waiting" | "expiring" | "lost"; hoursLeft: number; partnerCheckedIn: boolean }>("/api/chat/streak", { method: "POST" });
                 setStreak(result.streak);
-                setStreakNote(result.partnerCheckedIn ? "Streak kept for today" : "Saved. Your person still needs to tap");
+                setStreakState(result.state);
+                setStreakHours(result.hoursLeft);
+                setStreakNote(result.partnerCheckedIn ? "Streak kept for today" : "Saved. They still need to check in");
               } catch {
                 setStreakNote("Could not save the streak");
               }
@@ -400,7 +477,7 @@ export default function ChatView({ onBack }: Props) {
               🔥 {streak}
             </button>
           </div>
-          <p className={styles.chatStatus}>{streakNote || (partnerOnline ? "Online" : couple?.status === "pending" ? "Waiting to join" : "Offline")}</p>
+          <p className={styles.chatStatus}>{call.notice || streakNote || (partnerOnline ? "Online" : couple?.status === "pending" ? "Waiting to join" : "Offline")}</p>
         </div>
 
         <div className={styles.headerActions}>
@@ -411,12 +488,12 @@ export default function ChatView({ onBack }: Props) {
               <polyline points="21 15 16 10 5 21" />
             </svg>
           </button>
-          <button id="btn-call" className={styles.iconBtn} onClick={() => startCall("voice")}>
+          <button id="btn-call" className={styles.iconBtn} onClick={() => call.start("voice")}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.85A16 16 0 0 0 16 17.09l.1-.1a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
             </svg>
           </button>
-          <button id="btn-video" className={styles.iconBtn} onClick={() => startCall("video")}>
+          <button id="btn-video" className={styles.iconBtn} onClick={() => call.start("video")}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="23 7 16 12 23 17 23 7" />
               <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
@@ -427,30 +504,26 @@ export default function ChatView({ onBack }: Props) {
 
       {/* Context Menu Overlay */}
       {contextMenu && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1000 }} onClick={() => setContextMenu(null)}>
-          <div 
-            style={{ 
-              position: 'absolute', left: contextMenu.x, top: contextMenu.y, 
-              background: '#fff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-              padding: '8px 0', minWidth: '150px', transform: 'translate(-50%, -100%)', marginTop: '-10px'
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            <button className={styles.contextMenuItem} onClick={() => handleReplyMessage(messages.find(m => m.id === contextMenu.msgId)!)}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+        <div
+          className={styles.menuScrim}
+          onClick={() => {
+            if (Date.now() - menuOpenedAt.current < 450) return;
+            setContextMenu(null);
+          }}
+        >
+          <div className={styles.menuSheet} onClick={(event) => event.stopPropagation()}>
+            <button type="button" className={styles.contextMenuItem} onClick={() => handleReplyMessage(messages.find(m => m.id === contextMenu.msgId)!)}>
               Reply
             </button>
+            {contextMenu.isMe && messages.find((item) => item.id === contextMenu.msgId)?.type === "text" && (
+              <button type="button" className={styles.contextMenuItem} onClick={() => handleEditMessage(messages.find(m => m.id === contextMenu.msgId)!)}>
+                Edit
+              </button>
+            )}
             {contextMenu.isMe && (
-              <>
-                <button className={styles.contextMenuItem} onClick={() => handleEditMessage(messages.find(m => m.id === contextMenu.msgId)!)}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                  Edit
-                </button>
-                <button className={styles.contextMenuItem} onClick={() => handleDeleteMessage(contextMenu.msgId)} style={{ color: '#ef4444' }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                  Delete
-                </button>
-              </>
+              <button type="button" className={`${styles.contextMenuItem} ${styles.menuDanger}`} onClick={() => handleDeleteMessage(contextMenu.msgId)}>
+                Delete for everyone
+              </button>
             )}
           </div>
         </div>
@@ -458,9 +531,32 @@ export default function ChatView({ onBack }: Props) {
 
       {/* Messages */}
       <div 
-        className={styles.messages} 
+        ref={messagesRef}
+        className={styles.messages}
+        onScroll={(event) => {
+          const list = event.currentTarget;
+          stickToBottom.current = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
+        }} 
         style={wallpaper ? { backgroundImage: `url(${wallpaper})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
       >
+        {streakState === "expiring" && (
+          <div className={styles.streakBanner}>
+            <span>🔥 {streak}</span>
+            <p>Send a message in the next {streakHours}h or the streak ends.</p>
+          </div>
+        )}
+        {streakState === "waiting" && (
+          <div className={styles.streakBanner}>
+            <span>🔥 {streak}</span>
+            <p>You checked in. They still need to send a message today.</p>
+          </div>
+        )}
+        {streakState === "lost" && (
+          <div className={`${styles.streakBanner} ${styles.streakBannerCold}`}>
+            <span>🔥</span>
+            <p>The streak ended. Message each other today to start a new one.</p>
+          </div>
+        )}
         <div className={styles.dateLabel}>Today</div>
 
         {messages.map((msg) => {
@@ -473,18 +569,21 @@ export default function ChatView({ onBack }: Props) {
             >
               {msg.isDeleted ? (
                  <div className={`${styles.bubble} ${msg.from === "me" ? styles.bubbleMe : styles.bubbleBabe}`} style={{ opacity: 0.6, fontStyle: 'italic' }}>
-                   <p className={styles.bubbleText}>🚫 This message was deleted</p>
+                   <p className={styles.bubbleText}>This message was deleted</p>
                  </div>
               ) : (
                 <div 
                   style={{ display: 'flex', flexDirection: 'column', alignItems: msg.from === 'me' ? 'flex-end' : 'flex-start' }}
-                  onContextMenu={(e) => handleMessageContextMenu(e, msg)}
-                  onTouchStart={(e) => {
-                    const timer = setTimeout(() => handleMessageContextMenu(e, msg), 600);
-                    e.currentTarget.dataset.timer = timer.toString();
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    openMessageMenu(msg);
                   }}
-                  onTouchEnd={(e) => clearTimeout(Number(e.currentTarget.dataset.timer))}
-                  onTouchMove={(e) => clearTimeout(Number(e.currentTarget.dataset.timer))}
+                  onTouchStart={(event) => {
+                    const timer = window.setTimeout(() => openMessageMenu(msg), 450);
+                    event.currentTarget.dataset.timer = String(timer);
+                  }}
+                  onTouchEnd={(event) => window.clearTimeout(Number(event.currentTarget.dataset.timer))}
+                  onTouchMove={(event) => window.clearTimeout(Number(event.currentTarget.dataset.timer))}
                 >
                   {repliedMsg && (
                     <div style={{ background: 'rgba(0,0,0,0.05)', padding: '6px 10px', borderRadius: '8px', marginBottom: '4px', fontSize: '12px', borderLeft: `3px solid ${msg.from === 'me' ? '#1a1a1a' : '#FBBF24'}`, opacity: 0.8, maxWidth: '200px' }}>
@@ -496,46 +595,29 @@ export default function ChatView({ onBack }: Props) {
                   )}
 
                   {msg.type === "image" && msg.mediaUrl && (
-                    <div className={`${styles.bubble} ${msg.from === "me" ? styles.bubbleMe : styles.bubbleBabe} ${styles.mediaBubble}`}>
-                      <img src={msg.mediaUrl} alt="sent" className={styles.mediaImg} />
-                      <span className={styles.bubbleTime}>
+                    <button type="button" className={styles.mediaFrame} onClick={() => setViewer({ url: msg.mediaUrl || "", kind: "image" })}>
+                      <img src={msg.mediaUrl} alt="" className={styles.mediaImg} />
+                      <span className={styles.mediaTime}>
                         {msg.time}
-                        {msg.from === "me" && <DoubleCheck read={msg.read} />}
+                        {msg.from === "me" && <DoubleCheck read={msg.read} light />}
                       </span>
-                    </div>
+                    </button>
                   )}
 
                   {msg.type === "video" && msg.mediaUrl && (
-                    <div className={`${styles.bubble} ${msg.from === "me" ? styles.bubbleMe : styles.bubbleBabe} ${styles.mediaBubble}`}>
-                      <video src={msg.mediaUrl} controls className={styles.mediaImg} />
-                      <span className={styles.bubbleTime}>
+                    <button type="button" className={styles.mediaFrame} onClick={() => setViewer({ url: msg.mediaUrl || "", kind: "video" })}>
+                      <video src={msg.mediaUrl} className={styles.mediaImg} muted playsInline preload="metadata" />
+                      <span className={styles.playBadge}>▶</span>
+                      <span className={styles.mediaTime}>
                         {msg.time}
-                        {msg.from === "me" && <DoubleCheck read={msg.read} />}
+                        {msg.from === "me" && <DoubleCheck read={msg.read} light />}
                       </span>
-                    </div>
+                    </button>
                   )}
 
-                  {msg.type === "voice" && (
+                  {msg.type === "voice" && msg.mediaUrl && (
                     <div className={`${styles.bubble} ${msg.from === "me" ? styles.bubbleMe : styles.bubbleBabe}`}>
-                      <div className={styles.voiceMsg}>
-                        {msg.mediaUrl ? (
-                          <audio src={msg.mediaUrl} controls style={{ width: '200px', height: '36px' }} />
-                        ) : (
-                          <>
-                            <button className={styles.playBtn}>
-                              <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
-                                <polygon points="5 3 19 12 5 21 5 3" />
-                              </svg>
-                            </button>
-                            <div className={styles.waveform}>
-                              {Array.from({ length: 22 }).map((_, i) => (
-                                <div key={i} className={styles.bar} style={{ height: `${[3,6,10,14,8,12,5,9,16,11,7,13,6,10,4,8,15,9,5,11,7,3][i] || 5}px` }} />
-                              ))}
-                            </div>
-                            <span className={styles.voiceDur}>0:07</span>
-                          </>
-                        )}
-                      </div>
+                      <VoiceNote src={msg.mediaUrl} />
                       <span className={styles.bubbleTime}>
                         {msg.time}
                         {msg.from === "me" && <DoubleCheck read={msg.read} />}
@@ -572,7 +654,29 @@ export default function ChatView({ onBack }: Props) {
         <div ref={bottomRef} />
       </div>
 
-      {showEmoji && <EmojiPicker onPick={addEmoji} />}
+      {draftMedia && (
+        <div className={styles.previewSheet}>
+          {draftMedia.kind === "video"
+            ? <video src={draftMedia.preview} className={styles.previewMedia} controls playsInline />
+            : <img src={draftMedia.preview} alt="" className={styles.previewMedia} />}
+          <div className={styles.previewActions}>
+            <button type="button" onClick={() => { URL.revokeObjectURL(draftMedia.preview); setDraftMedia(null); }}>Cancel</button>
+            <button type="button" className={styles.previewSend} onClick={sendDraft} disabled={sendingMedia}>
+              {sendingMedia ? "Sending..." : "Send"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {viewer && (
+        <div className={styles.lightbox} onClick={() => setViewer(null)}>
+          {viewer.kind === "video"
+            ? <video src={viewer.url} className={styles.lightboxMedia} controls autoPlay playsInline onClick={(event) => event.stopPropagation()} />
+            : <img src={viewer.url} alt="" className={styles.lightboxMedia} onClick={(event) => event.stopPropagation()} />}
+        </div>
+      )}
+
+      {showEmoji && <EmojiPicker onPick={addEmoji} onClose={() => setShowEmoji(false)} />}
 
       {/* Attach panel */}
       {showAttach && (
@@ -605,38 +709,36 @@ export default function ChatView({ onBack }: Props) {
       <input type="file" accept="image/*" ref={wallpaperInputRef} onChange={handleWallpaperChange} style={{ display: "none" }} />
 
       {/* Input bar wrapper */}
-      <div style={{ display: 'flex', flexDirection: 'column', background: '#fff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-        
-        {/* Reply/Edit Banner */}
+      <div className={styles.composer}>
         {(replyingToMsg || editingMsgId) && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', background: '#f9fafb', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', borderLeft: '3px solid #FBBF24', paddingLeft: '8px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#FBBF24' }}>
-                {editingMsgId ? 'Editing Message' : `Replying to ${replyingToMsg?.from === 'me' ? 'yourself' : 'Babe'}`}
+          <div className={styles.replyBar}>
+            <div className={styles.replyCopy}>
+              <span className={styles.replyTitle}>
+                {editingMsgId ? "Editing Message" : `Replying to ${replyingToMsg?.from === "me" ? "yourself" : chatTitle}`}
               </span>
-              <span style={{ fontSize: '13px', color: '#6b7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '250px' }}>
-                {editingMsgId ? messages.find(m => m.id === editingMsgId)?.text : (replyingToMsg?.type === 'text' ? replyingToMsg.text : `[${replyingToMsg?.type}]`)}
+              <span className={styles.replyText}>
+                {editingMsgId ? messages.find(m => m.id === editingMsgId)?.text : (replyingToMsg?.type === "text" ? replyingToMsg.text : `[${replyingToMsg?.type}]`)}
               </span>
             </div>
-            <button 
+            <button
+              className={styles.replyClose}
               onClick={() => { setReplyingToMsg(null); setEditingMsgId(null); setInput(""); }}
-              style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(0,0,0,0.05)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}
+              aria-label="Cancel"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '16px', height: '16px' }}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           </div>
         )}
 
         <div className={styles.inputBar} style={{ borderTop: 'none' }}>
           {isRecording ? (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', color: '#ef4444', animation: 'fadeIn 0.2s' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444', animation: 'pulseAvatar 1s infinite' }} />
-                <span style={{ fontWeight: '500', fontVariantNumeric: 'tabular-nums' }}>
-                  {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}
-                </span>
+            <div className={styles.recordingBar}>
+              <button type="button" className={styles.recordCancel} onClick={() => finishRecording(false)}>Cancel</button>
+              <div className={styles.recordTime}>
+                <span className={styles.recordDot} />
+                {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")}
               </div>
-              <span style={{ color: '#6b7280', fontSize: '13px' }}>Release to send</span>
+              <button type="button" className={styles.previewSend} onClick={() => finishRecording(true)}>Send</button>
             </div>
           ) : (
             <>
@@ -666,8 +768,8 @@ export default function ChatView({ onBack }: Props) {
                   onKeyDown={e => e.key === "Enter" && send()}
                 />
                 <button
-                  className={styles.emojiToggle}
-                  aria-label="Emojis"
+                  className={`${styles.emojiToggle} ${showEmoji ? styles.emojiToggleOn : ""}`}
+                  aria-label={showEmoji ? "Close emojis" : "Emojis"}
                   onClick={() => { setShowEmoji((open) => !open); setShowAttach(false); }}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -681,15 +783,12 @@ export default function ChatView({ onBack }: Props) {
             </>
           )}
 
-          <button 
-            id="btn-voice" 
+          {!isRecording && !(input.trim() || editingMsgId) && (
+          <button
+            id="btn-voice"
+            type="button"
             className={styles.voiceBtn}
-            style={{ transform: isRecording ? 'scale(1.3)' : 'scale(1)' }}
-            onMouseDown={startRecording}
-            onMouseUp={stopRecording}
-            onMouseLeave={stopRecording}
-            onTouchStart={startRecording}
-            onTouchEnd={stopRecording}
+            onClick={startRecording}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
@@ -698,6 +797,7 @@ export default function ChatView({ onBack }: Props) {
               <line x1="8" y1="23" x2="16" y2="23" />
             </svg>
           </button>
+          )}
 
           {!isRecording && (input.trim() || editingMsgId) && (
             <button id="btn-send" className={styles.sendBtn} onClick={send}>
@@ -721,11 +821,115 @@ export default function ChatView({ onBack }: Props) {
   );
 }
 
-function DoubleCheck({ read }: { read?: boolean }) {
+let noteContext: AudioContext | null = null;
+
+function noteAudio() {
+  const Context = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Context) return null;
+  if (!noteContext) noteContext = new Context();
+  if (noteContext.state === "suspended") void noteContext.resume();
+  return noteContext;
+}
+
+function playMessageNote() {
+  const context = noteAudio();
+  if (!context) return;
+  const now = context.currentTime;
+  [659.25, 880].forEach((frequency, index) => {
+    const osc = context.createOscillator();
+    const gain = context.createGain();
+    osc.type = "sine";
+    osc.frequency.value = frequency;
+    const start = now + index * 0.11;
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.07, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.32);
+    osc.connect(gain);
+    gain.connect(context.destination);
+    osc.start(start);
+    osc.stop(start + 0.34);
+  });
+}
+
+function encodeWav(chunks: Float32Array[], sampleRate: number) {
+  const length = chunks.reduce((total, chunk) => total + chunk.length, 0);
+  const buffer = new ArrayBuffer(44 + length * 2);
+  const view = new DataView(buffer);
+  const write = (offset: number, text: string) => {
+    for (let index = 0; index < text.length; index += 1) view.setUint8(offset + index, text.charCodeAt(index));
+  };
+  write(0, "RIFF");
+  view.setUint32(4, 36 + length * 2, true);
+  write(8, "WAVE");
+  write(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  write(36, "data");
+  view.setUint32(40, length * 2, true);
+  let offset = 44;
+  chunks.forEach((chunk) => {
+    for (let index = 0; index < chunk.length; index += 1) {
+      const sample = Math.max(-1, Math.min(1, chunk[index]));
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+      offset += 2;
+    }
+  });
+  return new Blob([buffer], { type: "audio/wav" });
+}
+
+function VoiceNote({ src }: { src: string }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const heights = [4, 8, 14, 10, 18, 8, 12, 6, 16, 9, 13, 7, 15, 5, 11, 8, 17, 6, 10, 14];
+  const toggle = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) void audio.play().catch(() => setPlaying(false));
+    else audio.pause();
+  };
+  const clock = (value: number) => `${Math.floor(value / 60)}:${Math.floor(value % 60).toString().padStart(2, "0")}`;
   return (
-    <svg width="16" height="10" viewBox="0 0 16 10" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M1 5l3 3 6-7" stroke={read ? "#1a1a1a" : "rgba(26,26,26,0.4)"} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M5 5l3 3 6-7" stroke={read ? "#1a1a1a" : "rgba(26,26,26,0.4)"} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    <div className={styles.voiceMsg}>
+      <audio
+        ref={audioRef}
+        src={src}
+        preload="metadata"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => { setPlaying(false); setProgress(0); }}
+        onLoadedMetadata={(event) => setDuration(event.currentTarget.duration || 0)}
+        onTimeUpdate={(event) => {
+          const audio = event.currentTarget;
+          if (audio.duration) setProgress(audio.currentTime / audio.duration);
+        }}
+      />
+      <button type="button" className={styles.playBtn} onClick={toggle} aria-label={playing ? "Pause" : "Play"}>
+        {playing ? "❚❚" : "▶"}
+      </button>
+      <div className={styles.waveform}>
+        {heights.map((height, index) => (
+          <div key={index} className={styles.bar} style={{ height, opacity: index / heights.length <= progress ? 1 : 0.35 }} />
+        ))}
+      </div>
+      <span className={styles.voiceDur}>{clock(playing || progress ? (duration * progress) : duration)}</span>
+    </div>
+  );
+}
+
+function DoubleCheck({ read, light }: { read?: boolean; light?: boolean }) {
+  const on = light ? "#fff" : "currentColor";
+  const off = light ? "rgba(255,255,255,0.75)" : "currentColor";
+  return (
+    <svg width="16" height="10" viewBox="0 0 16 10" fill="none" style={{ flexShrink: 0, opacity: read || light ? 1 : 0.45 }}>
+      <path d="M1 5l3 3 6-7" stroke={read ? on : off} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 5l3 3 6-7" stroke={read ? on : off} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

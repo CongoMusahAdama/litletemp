@@ -24,10 +24,15 @@ async function saveMessage(user, couple, body) {
     mediaUrl: mediaUrl || undefined,
     replyToId: body.replyToId || undefined,
   });
-  await touchStreak(couple, user._id);
+  const streak = await touchStreak(couple, user._id);
   const { getIo } = require('../socket');
   const io = getIo();
-  if (io) io.to(`couple:${couple._id}`).emit('message:new', presentMessage(message));
+  if (io) {
+    io.to(`couple:${couple._id}`).emit('message:new', presentMessage(message));
+    io.to(`couple:${couple._id}`).emit('streak:updated', { streak });
+  }
+  const { notifyPartner } = require('./push');
+  notifyPartner(user, couple, message).catch(() => undefined);
   return message;
 }
 

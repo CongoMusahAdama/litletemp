@@ -72,7 +72,7 @@ function Icon({ id }: { id: string }) {
   return <svg {...common}><path d="M5 15V5h8l6 6v10H5z" /><path d="M13 5v6h6" /></svg>;
 }
 
-export default function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
+export default function EmojiPicker({ onPick, onClose }: { onPick: (emoji: string) => void; onClose: () => void }) {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState("smileys");
   const [recent, setRecent] = useState<string[]>(() => {
@@ -110,6 +110,12 @@ export default function EmojiPicker({ onPick }: { onPick: (emoji: string) => voi
 
   return (
     <div className={styles.panel}>
+      <div className={styles.topBar}>
+        <span>Emoji</span>
+        <button type="button" className={styles.close} onClick={onClose} aria-label="Close emoji">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
       <div className={styles.tabs}>
         {recent.length > 0 && (
           <button className={`${styles.tab} ${active === "recent" ? styles.tabOn : ""}`} onClick={() => jump("recent")} aria-label="Recent">

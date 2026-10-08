@@ -1,20 +1,22 @@
 .splash {
   position: fixed;
   top: 0;
-  bottom: 0;
   left: 50%;
   z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
   width: min(100%, 430px);
+  height: 100dvh;
   transform: translateX(-50%);
   overflow: hidden;
   background: #ffe14a;
+  padding: env(safe-area-inset-top) 24px env(safe-area-inset-bottom);
 }
 
 .logo {
-  width: 196px;
-  height: 196px;
+  width: min(196px, 52vw);
+  height: auto;
+  aspect-ratio: 1;
   object-fit: contain;
 }

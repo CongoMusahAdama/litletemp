@@ -14,7 +14,7 @@ router.use(requireAuth);
 
 router.patch('/', async (req, res, next) => {
   try {
-    const { name, username, avatarUrl, notifications, language, theme, pin } = req.body;
+    const { name, username, avatarUrl, notifications, language, theme, pin, bubbleColor } = req.body;
     if (name !== undefined) {
       const clean = String(name).trim().slice(0, 40);
       if (!clean) return res.status(400).json({ error: 'Name cannot be empty' });
@@ -28,6 +28,9 @@ router.patch('/', async (req, res, next) => {
     if (typeof notifications === 'boolean') req.user.notifications = notifications;
     if (language) req.user.language = String(language).slice(0, 40);
     if (theme === 'light' || theme === 'dark') req.user.theme = theme;
+    if (typeof bubbleColor === 'string' && /^#[0-9A-Fa-f]{6}$/.test(bubbleColor)) {
+      req.user.bubbleColor = bubbleColor.toUpperCase();
+    }
     if (pin !== undefined) {
       const digits = String(pin);
       if (!/^\d{4,6}$/.test(digits)) {
@@ -36,6 +39,10 @@ router.patch('/', async (req, res, next) => {
       req.user.pinHash = await bcrypt.hash(digits, 10);
     }
     await req.user.save();
+    const io = getIo();
+    if (io && req.user.coupleId) {
+      io.to(`couple:${req.user.coupleId}`).emit('partner:updated', { user: req.user.toPublic() });
+    }
     res.json({ user: req.user.toPublic() });
   } catch (error) {
     if (error.code === 11000) return res.status(409).json({ error: 'That username is taken' });

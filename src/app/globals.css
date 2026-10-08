@@ -15,6 +15,11 @@
   --bg-card: #ffffff;
   --bg-elevated: #ffffff;
   --bg-input: #F5EFE6;        /* Slightly warm grey for inputs */
+  --bg-app: #FDF8F0;
+  --bg-chat: #efeae2;
+  --bg-header: rgba(255, 255, 255, 0.94);
+  --bubble-in: #ffffff;
+  color-scheme: light;
 
   /* Text */
   --text-primary: #050505;
@@ -50,7 +55,12 @@
   --bg-card: #1e1e1e;
   --bg-elevated: #252525;
   --bg-input: #2a2a2a;
+  --bg-app: #0d0d0d;
+  --bg-chat: #0b141a;
+  --bg-header: rgba(18, 18, 18, 0.96);
+  --bubble-in: #1f2c34;
   --text-primary: #ffffff;
+  color-scheme: dark;
   --text-secondary: #a0a0a0;
   --text-muted: #606060;
   --border: rgba(255,255,255,0.07);
@@ -73,6 +83,7 @@ html {
   height: 100%;
   font-size: 16px;
   -webkit-text-size-adjust: 100%;
+  background: #1a1a1a;
 }
 
 body {
@@ -81,13 +92,22 @@ body {
   letter-spacing: -0.01em;
   background: var(--bg-primary);
   color: var(--text-primary);
-  min-height: 100%;
-  max-width: var(--max-width);
+  width: min(100%, var(--max-width));
+  height: 100dvh;
   margin: 0 auto;
   position: relative;
-  overflow-x: hidden;
+  overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
+}
+
+input, textarea, select {
+  font-size: 16px;
+}
+
+img, video {
+  max-width: 100%;
 }
 
 /* All headings and UI elements also use Sora */

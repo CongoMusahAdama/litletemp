@@ -1,8 +1,8 @@
 .container {
   position: absolute;
-  bottom: calc(16px + env(safe-area-inset-bottom));
-  left: 24px;
-  right: 24px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  left: 16px;
+  right: 16px;
   z-index: 50;
   animation: slideUp 0.4s ease forwards;
 }

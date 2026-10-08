@@ -1,14 +1,17 @@
 .screen {
   position: fixed;
-  inset: 0;
-  max-width: 430px;
-  margin: 0 auto;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, 430px);
+  height: 100dvh;
   background: #FDF8F0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
   font-family: 'Sora', sans-serif;
+  padding-top: env(safe-area-inset-top);
 }
 
 .container {
@@ -289,28 +292,29 @@
 .welcome {
   position: fixed;
   top: 0;
-  bottom: 0;
   left: 50%;
   transform: translateX(-50%);
   width: min(100%, 430px);
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background: linear-gradient(180deg, #fff6d4 0%, #ffe7a3 46%, #ffd98a 100%);
   z-index: 5;
   overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .welcomeTop {
-  padding: 54px 26px 0;
+  padding: calc(28px + env(safe-area-inset-top)) 22px 0;
 }
 
 .welcomeTitle {
   margin: 0;
-  max-width: 280px;
+  max-width: 100%;
   color: #1a1a1a;
-  font-size: 40px;
+  font-size: clamp(30px, 9vw, 40px);
   font-weight: 800;
-  letter-spacing: -1.4px;
+  letter-spacing: -1.2px;
   line-height: 0.95;
   text-transform: uppercase;
 }
@@ -370,14 +374,14 @@
 }
 
 .memoryYou {
-  left: 36px;
-  top: 28px;
+  left: 8%;
+  top: 8%;
   transform: rotate(-10deg);
 }
 
 .memoryMe {
-  right: 34px;
-  top: 78px;
+  right: 7%;
+  top: 28%;
   transform: rotate(8deg);
 }
 
@@ -448,7 +452,7 @@
 
 .handsWrap {
   position: relative;
-  height: 210px;
+  height: min(210px, 28dvh);
   flex-shrink: 0;
 }
 
@@ -671,15 +675,16 @@
 .codeScreen {
   position: fixed;
   top: 0;
-  bottom: 0;
   left: 50%;
   transform: translateX(-50%);
   width: min(100%, 430px);
+  height: 100dvh;
   z-index: 6;
   display: flex;
   flex-direction: column;
-  padding: 22px 24px 28px;
+  padding: calc(18px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom));
   background: linear-gradient(180deg, #fff8df 0%, #ffe9a8 100%);
+  overflow-y: auto;
 }
 
 .codeBack {
@@ -735,14 +740,14 @@
 
 .codeTicket {
   width: 100%;
-  padding: 22px 16px;
+  padding: 22px 12px;
   border-radius: 22px;
   background: #fff;
   color: #1a1a1a;
   font-family: "Sora", sans-serif;
-  font-size: 32px;
+  font-size: clamp(22px, 7vw, 32px);
   font-weight: 800;
-  letter-spacing: 3px;
+  letter-spacing: 2px;
   box-shadow: 0 16px 34px rgba(140, 100, 10, 0.14);
 }
 
@@ -918,7 +923,7 @@
   border: 2px solid #f3f4f6;
   border-radius: 16px;
   padding: 16px 18px;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 600;
   font-family: 'Sora', sans-serif;
   color: #1a1a1a;
@@ -972,4 +977,17 @@
   color: var(--text-muted);
   font-weight: 500;
   text-align: left;
+}
+
+@media (max-height: 700px) {
+  .welcomeTitle { font-size: 28px; }
+  .welcomeTop { padding-top: calc(16px + env(safe-area-inset-top)); }
+  .memory { width: 108px; height: 128px; }
+  .pairStage { min-height: 160px; }
+  .hands { height: 160px; }
+}
+
+@media (max-width: 360px) {
+  .memory { width: 112px; height: 132px; }
+  .codeTitle { font-size: 28px; }
 }

@@ -6,8 +6,27 @@ import Swal from "sweetalert2";
 import { api, mediaUrl, uploadFile } from "@/lib/api";
 import { useSession } from "@/context/SessionContext";
 import { useTheme } from "@/context/ThemeContext";
+import { applyBubble, BUBBLES } from "@/lib/bubbles";
+import GamesScreen from "../GamesScreen";
 
 const menuItems = [
+  {
+    id: "play",
+    label: "Play",
+    sub: "Couple games",
+    iconBg: "#FEF3C7",
+    iconColor: "#D97706",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="4" />
+        <circle cx="8" cy="8" r="1.2" fill="currentColor" />
+        <circle cx="16" cy="8" r="1.2" fill="currentColor" />
+        <circle cx="12" cy="12" r="1.2" fill="currentColor" />
+        <circle cx="8" cy="16" r="1.2" fill="currentColor" />
+        <circle cx="16" cy="16" r="1.2" fill="currentColor" />
+      </svg>
+    ),
+  },
   {
     id: "favourites",
     label: "Favourites",
@@ -72,6 +91,18 @@ const menuItems = [
         <line x1="16" y1="2" x2="16" y2="6" />
         <line x1="8" y1="2" x2="8" y2="6" />
         <line x1="3" y1="10" x2="21" y2="10" />
+      </svg>
+    ),
+  },
+  {
+    id: "bubble",
+    label: "Chat bubble",
+    sub: "Yellow",
+    iconBg: "#FEF3C7",
+    iconColor: "#F59E0B",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
       </svg>
     ),
   },
@@ -266,6 +297,10 @@ export default function MoreTab() {
     );
   }
 
+  if (panel === "play") {
+    return <GamesScreen onBack={() => setPanel(null)} />;
+  }
+
   if (panel) {
     const title = menuItems.find((item) => item.id === panel)?.label || "Bucket list";
     return (
@@ -342,6 +377,29 @@ export default function MoreTab() {
               </button>
             </div>
           )}
+          {panel === "bubble" && (
+            <div className={styles.bubbleGrid}>
+              {BUBBLES.map((item) => {
+                const current = user?.bubbleColor || (typeof window !== "undefined" ? localStorage.getItem("lt_bubble") : "") || "#FBBF24";
+                const selected = current.toLowerCase() === item.color.toLowerCase();
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`${styles.bubbleDot} ${selected ? styles.bubbleOn : ""}`}
+                    style={{ background: item.color }}
+                    aria-label={item.id}
+                    onClick={() => {
+                      applyBubble(item.color);
+                      saveSetting({ bubbleColor: item.color }).catch(() => undefined);
+                    }}
+                  >
+                    {selected && <span style={{ color: item.ink }}>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {panel === "theme" && (
             <div className={styles.editForm}>
               {(["light", "dark"] as const).map((mode) => (
@@ -364,6 +422,7 @@ export default function MoreTab() {
     privacy: user?.hasPin ? "PIN is on" : "Set a PIN",
     anniversary: stats.daysToGo == null ? "Set your date" : `${stats.daysToGo} days to go`,
     theme: theme === "dark" ? "Dark mode" : "Light mode",
+    bubble: "Your message color",
   };
 
   return (

@@ -9,7 +9,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 20px 10px;
+  padding: 14px 16px 10px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
 }
@@ -172,6 +172,7 @@
   font-size: 20px;
   font-weight: 700;
   color: #fff;
+  object-fit: cover;
 }
 
 .onlineDot {

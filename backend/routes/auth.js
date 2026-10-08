@@ -87,9 +87,10 @@ router.get('/me', requireAuth, async (req, res, next) => {
   try {
     let partner = null;
     if (req.couple) {
-      const partnerId = String(req.couple.partner1) === String(req.user._id)
-        ? req.couple.partner2
-        : req.couple.partner1;
+      const selfId = String(req.user._id);
+      const partnerId = [req.couple.partner1, req.couple.partner2]
+        .map((id) => (id ? String(id) : ''))
+        .find((id) => id && id !== selfId);
       if (partnerId) partner = await User.findById(partnerId);
     }
     res.json({
