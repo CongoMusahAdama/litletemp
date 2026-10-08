@@ -33,11 +33,25 @@ export default function LoginScreen({ onLogin }: Props) {
     if (!myName.trim() || !partnerName.trim()) return;
     setLoading(true);
     try {
-      const data = await api<{ token: string; couple: { inviteCode: string } }>("/api/auth/start", {
+      const data = await api<{ token: string; returning?: boolean; couple: { inviteCode: string } }>("/api/auth/start", {
         method: "POST",
         body: JSON.stringify({ myName, partnerName }),
       });
       setToken(data.token);
+      if (data.returning) {
+        await refresh();
+        await Swal.fire({
+          title: "Welcome back",
+          text: "Your old messages are still here.",
+          icon: "success",
+          confirmButtonColor: "#1a1a1a",
+          background: "#ffffff",
+          color: "#1a1a1a",
+          confirmButtonText: "Enter our space",
+        });
+        onLogin();
+        return;
+      }
       setGeneratedCode(data.couple.inviteCode);
       setWaiting(true);
       setStep("share_code");

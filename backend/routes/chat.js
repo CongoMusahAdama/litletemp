@@ -57,7 +57,7 @@ router.post('/streak', async (req, res, next) => {
 
 router.get('/messages', async (req, res, next) => {
   try {
-    const messages = await Message.find({ coupleId: req.couple._id }).sort({ createdAt: 1 }).limit(200);
+    const messages = await Message.find({ coupleId: req.couple._id }).sort({ createdAt: 1 }).limit(2000);
     res.json(messages.map(presentMessage));
   } catch (error) {
     next(error);

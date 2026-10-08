@@ -1,6 +1,7 @@
 const express = require('express');
 const User = require('../models/User');
 const Couple = require('../models/Couple');
+const Message = require('../models/Message');
 const { signToken, requireAuth } = require('../middleware/auth');
 const { makeInviteCode } = require('../lib/couple');
 const { presentCouple } = require('../lib/present');
@@ -12,12 +13,47 @@ function cleanName(value) {
   return String(value || '').trim().slice(0, 40);
 }
 
+function sameName(left, right) {
+  return cleanName(left).toLowerCase() === cleanName(right).toLowerCase();
+}
+
+async function existingBond(myName, partnerName) {
+  const people = await User.find({ coupleId: { $ne: null } }).sort({ updatedAt: -1 });
+  let best = null;
+  for (const person of people) {
+    if (!sameName(person.name, myName)) continue;
+    const couple = await Couple.findById(person.coupleId);
+    if (!couple) continue;
+    const otherId = [couple.partner1, couple.partner2]
+      .map((id) => (id ? String(id) : ''))
+      .find((id) => id && id !== String(person._id));
+    const other = otherId ? await User.findById(otherId) : null;
+    const otherName = other?.name || couple.expectedPartnerName || '';
+    if (!sameName(otherName, partnerName)) continue;
+    const messages = await Message.countDocuments({ coupleId: couple._id });
+    if (!best || messages > best.messages || (messages === best.messages && couple.updatedAt > best.couple.updatedAt)) {
+      best = { user: person, couple, messages };
+    }
+  }
+  return best;
+}
+
 router.post('/start', async (req, res, next) => {
   try {
     const myName = cleanName(req.body.myName);
     const partnerName = cleanName(req.body.partnerName);
     if (!myName || !partnerName) {
       return res.status(400).json({ error: 'Both names are required' });
+    }
+
+    const previous = await existingBond(myName, partnerName);
+    if (previous) {
+      return res.status(200).json({
+        token: signToken(previous.user._id),
+        returning: true,
+        user: previous.user.toPublic(),
+        couple: presentCouple(previous.couple, previous.user),
+      });
     }
 
     const user = await User.create({ name: myName });
