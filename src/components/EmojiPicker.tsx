@@ -55,7 +55,7 @@ const KEYWORDS: Record<string, string> = {
   "😀": "grin smile happy", "😂": "joy laugh cry", "🤣": "rofl laugh", "😍": "heart eyes love", "😘": "kiss",
   "😭": "cry sad", "😎": "cool sunglasses", "🥺": "pleading puppy", "😡": "angry", "👍": "yes like thumb",
   "👎": "no dislike", "🙏": "pray thanks", "👏": "clap", "🔥": "fire hot", "❤️": "heart love red",
-  "💔": "broken heart", "🎉": "party", "✨": "sparkle", "💯": "hundred perfect", "😂": "laugh",
+  "💔": "broken heart", "🎉": "party", "✨": "sparkle", "💯": "hundred perfect",
 };
 
 function Icon({ id }: { id: string }) {
