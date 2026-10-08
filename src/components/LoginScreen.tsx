@@ -52,15 +52,17 @@ export default function LoginScreen({ onLogin }: Props) {
     if (!myName.trim() || pairingCode.length < 4) return;
     setLoading(true);
     try {
-      const data = await api<{ token: string }>("/api/auth/join", {
+      const data = await api<{ token: string; returning?: boolean }>("/api/auth/join", {
         method: "POST",
         body: JSON.stringify({ myName, pairingCode }),
       });
       setToken(data.token);
       await refresh();
       await Swal.fire({
-        title: "Bond Connected!",
-        text: "You are paired. Messages, journal, and moods now stay in sync.",
+        title: data.returning ? "Welcome back" : "Bond Connected!",
+        text: data.returning
+          ? "You are signed in again. Your messages are still here."
+          : "You are paired. Messages, journal, and moods now stay in sync.",
         icon: "success",
         confirmButtonColor: "#1a1a1a",
         background: "#ffffff",

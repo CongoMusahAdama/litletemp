@@ -51,7 +51,24 @@ router.post('/join', async (req, res, next) => {
 
     const couple = await Couple.findOne({ inviteCode: code });
     if (!couple) return res.status(404).json({ error: 'That pairing code was not found' });
-    if (couple.inviteExpiresAt < new Date()) {
+
+    const people = await User.find({
+      _id: { $in: [couple.partner1, couple.partner2].filter(Boolean) },
+    });
+    const matches = people.filter((person) => person.name.toLowerCase() === myName.toLowerCase());
+    if (matches.length === 1) {
+      const user = matches[0];
+      return res.status(200).json({
+        token: signToken(user._id),
+        returning: true,
+        user: user.toPublic(),
+        couple: presentCouple(couple, user),
+      });
+    }
+    if (matches.length > 1) {
+      return res.status(409).json({ error: 'Both names match. Use the name saved on your profile.' });
+    }
+    if (couple.inviteExpiresAt && couple.inviteExpiresAt < new Date()) {
       return res.status(410).json({ error: 'That pairing code has expired' });
     }
     if (couple.partner2) return res.status(409).json({ error: 'This bond is already paired' });
