@@ -63,6 +63,12 @@ export function uploadFile(file: File) {
   return api<{ url: string }>("/api/uploads", { method: "POST", body });
 }
 
+export function shownName(person?: { name?: string; username?: string } | null, fallback = "") {
+  const username = person?.username?.trim();
+  if (username) return username;
+  return person?.name?.trim() || fallback;
+}
+
 export function mediaUrl(path: string) {
   if (!path) return "";
   if (path.startsWith("http") || path.startsWith("blob:")) return path;

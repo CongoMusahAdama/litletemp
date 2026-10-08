@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { io, Socket } from "socket.io-client";
 import styles from "./ChatView.module.css";
-import { API_URL, api, getToken, mediaUrl, uploadFile } from "@/lib/api";
+import { API_URL, api, getToken, mediaUrl, shownName, uploadFile } from "@/lib/api";
 import { useSession } from "@/context/SessionContext";
 import EmojiPicker from "./EmojiPicker";
 import { useCoupleCall } from "@/hooks/useCoupleCall";
@@ -60,7 +60,7 @@ export default function ChatView({ onBack }: Props) {
   const [draftMedia, setDraftMedia] = useState<{ file: File; kind: "image" | "video"; preview: string } | null>(null);
   const [sendingMedia, setSendingMedia] = useState(false);
   const [viewer, setViewer] = useState<{ url: string; kind: "image" | "video" } | null>(null);
-  const chatTitle = partner?.name
+  const chatTitle = shownName(partner)
     || (couple?.expectedPartnerName && couple.expectedPartnerName !== user?.name ? couple.expectedPartnerName : "")
     || "My Babe";
   const [streakNote, setStreakNote] = useState("");
@@ -586,10 +586,10 @@ export default function ChatView({ onBack }: Props) {
                   onTouchMove={(event) => window.clearTimeout(Number(event.currentTarget.dataset.timer))}
                 >
                   {repliedMsg && (
-                    <div style={{ background: 'rgba(0,0,0,0.05)', padding: '6px 10px', borderRadius: '8px', marginBottom: '4px', fontSize: '12px', borderLeft: `3px solid ${msg.from === 'me' ? '#1a1a1a' : '#FBBF24'}`, opacity: 0.8, maxWidth: '200px' }}>
-                      <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>{repliedMsg.from === 'me' ? 'You' : 'Babe'}</div>
-                      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {repliedMsg.isDeleted ? 'Deleted message' : repliedMsg.type === 'text' ? repliedMsg.text : `[${repliedMsg.type}]`}
+                    <div className={styles.quote}>
+                      <div className={styles.quoteName}>{repliedMsg.from === "me" ? "You" : chatTitle}</div>
+                      <div className={styles.quoteText}>
+                        {repliedMsg.isDeleted ? "Deleted message" : repliedMsg.type === "text" ? repliedMsg.text : repliedMsg.type === "voice" ? "Voice note" : repliedMsg.type === "image" ? "Photo" : "Video"}
                       </div>
                     </div>
                   )}

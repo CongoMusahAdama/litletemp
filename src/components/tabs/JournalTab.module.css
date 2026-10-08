@@ -324,10 +324,10 @@
   border: none;
   border-radius: 16px;
   padding: 16px;
-  background: #f9fafb;
+  background: var(--bg-input);
   font-size: 15px;
   font-family: 'Sora', sans-serif;
-  color: #374151;
+  color: var(--text-primary);
   resize: none;
   outline: none;
   margin-bottom: 20px;

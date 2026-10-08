@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import styles from "./ChatsTab.module.css";
-import { api, mediaUrl, uploadFile } from "@/lib/api";
+import { api, mediaUrl, shownName, uploadFile } from "@/lib/api";
 import { useSession } from "@/context/SessionContext";
 
 interface Props {
@@ -10,7 +10,7 @@ interface Props {
 }
 
 type Summary = {
-  partner: { id: string; name: string; avatarUrl: string } | null;
+  partner: { id: string; name: string; username?: string; avatarUrl: string } | null;
   expectedPartnerName: string;
   lastMessage: { text?: string; type: string; time: string; senderId: string } | null;
   unread: number;
@@ -69,12 +69,12 @@ export default function ChatsTab({ onOpenChat }: Props) {
   };
 
   const summaryPartner = summary?.partner && String(summary.partner.id) !== String(user?.id)
-    ? summary.partner.name
+    ? shownName(summary.partner)
     : "";
   const invitedName = couple?.expectedPartnerName && couple.expectedPartnerName !== user?.name
     ? couple.expectedPartnerName
     : "";
-  const partnerName = partner?.name || summaryPartner || invitedName || "My Babe";
+  const partnerName = shownName(partner) || summaryPartner || invitedName || "My Babe";
   const summaryPhoto = summary?.partner && String(summary.partner.id) !== String(user?.id) ? summary.partner.avatarUrl : "";
   const partnerPhoto = partner?.avatarUrl || summaryPhoto || "";
   const preview = summary?.lastMessage

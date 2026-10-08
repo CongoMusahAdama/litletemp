@@ -151,7 +151,7 @@
 .moodOptionLabel {
   font-size: 12px;
   font-weight: 700;
-  color: #374151;
+  color: var(--text-primary);
   text-align: center;
   line-height: 1.2;
 }
@@ -293,7 +293,7 @@
 .insightVal {
   font-size: 12px;
   font-weight: 700;
-  color: #374151;
+  color: var(--text-primary);
   text-align: center;
 }
 

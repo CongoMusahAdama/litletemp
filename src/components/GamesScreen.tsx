@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
-import { API_URL, getToken } from "@/lib/api";
+import { API_URL, getToken, shownName } from "@/lib/api";
 import { useSession } from "@/context/SessionContext";
 import styles from "./GamesScreen.module.css";
 
@@ -38,7 +38,7 @@ const GAMES: { id: Kind; title: string; line: string; tone: string }[] = [
 
 export default function GamesScreen({ onBack }: { onBack: () => void }) {
   const { partner } = useSession();
-  const partnerName = partner?.name || "them";
+  const partnerName = shownName(partner, "them");
   const [view, setView] = useState<GameView | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [mine, setMine] = useState("");

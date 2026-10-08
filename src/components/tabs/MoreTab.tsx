@@ -159,8 +159,8 @@ export default function MoreTab() {
 
   useEffect(() => {
     if (!user) return;
-    setName(user.name);
-    setUsername(user.username ? `@${user.username}` : "");
+    setName(user.username || user.name);
+    setUsername(user.username && user.username !== user.name ? user.name : "");
     setEditName(user.name);
     setEditUsername(user.username ? `@${user.username}` : "");
     setAvatarSrc(user.avatarUrl ? mediaUrl(user.avatarUrl) : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=FBBF24&color=1a1a1a&size=200&bold=true`);

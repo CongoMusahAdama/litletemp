@@ -398,17 +398,54 @@
   color: var(--text-secondary);
 }
 
+.quote {
+  max-width: 220px;
+  margin-bottom: 4px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border-left: 3px solid #FBBF24;
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.quoteName {
+  font-size: 12px;
+  font-weight: 800;
+  color: #FBBF24;
+  margin-bottom: 2px;
+}
+
+.quoteText {
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .playBtn {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: rgba(26,26,26,0.1);
+  background: rgba(26, 26, 26, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #1a1a1a;
   flex-shrink: 0;
-  transition: background 0.2s;
+}
+
+.bubbleBabe .playBtn {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.bubbleBabe .bar {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.bubbleBabe .voiceDur {
+  color: var(--text-secondary);
 }
 .bubbleMe .playBtn { background: rgba(26,26,26,0.12); }
 .playBtn:active { background: rgba(26,26,26,0.2); }
