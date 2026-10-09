@@ -16,6 +16,7 @@ const storyRoutes = require('./routes/stories');
 const uploadRoutes = require('./routes/uploads');
 const pushRoutes = require('./routes/push');
 const { initSocket } = require('./socket');
+const { sendMorningNotes } = require('./lib/morning');
 
 if (!process.env.JWT_SECRET) {
   console.error('JWT_SECRET is missing. Add it to backend/.env before starting.');
@@ -70,6 +71,8 @@ mongoose.connect(process.env.MONGO_URI)
       await users.dropIndex('email_1');
     }
     console.log('Connected to MongoDB');
+    sendMorningNotes().catch(() => undefined);
+    setInterval(() => sendMorningNotes().catch(() => undefined), 15 * 60 * 1000);
   })
   .catch((error) => console.error('MongoDB connection error:', error.message));
 

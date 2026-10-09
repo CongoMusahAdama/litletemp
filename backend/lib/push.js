@@ -18,6 +18,35 @@ async function vapidPublicKey() {
   return key.publicKey;
 }
 
+function iconFor(person) {
+  if (!person?.avatarUrl) return '';
+  const path = String(person.avatarUrl);
+  if (path.startsWith('http')) return path;
+  const base = process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_API_URL || '';
+  return base ? `${base}${path}` : '';
+}
+
+async function deliver(user, payload) {
+  if (!user || user.notifications === false || !user.pushSubscriptions?.length) return;
+  await vapidPublicKey();
+  const body = JSON.stringify(payload);
+  const remaining = [];
+  for (const sub of user.pushSubscriptions) {
+    try {
+      await webpush.sendNotification({
+        endpoint: sub.endpoint,
+        keys: { p256dh: sub.p256dh, auth: sub.auth },
+      }, body);
+      remaining.push(sub);
+    } catch (error) {
+      if (error.statusCode !== 404 && error.statusCode !== 410) remaining.push(sub);
+    }
+  }
+  if (remaining.length !== user.pushSubscriptions.length) {
+    user.pushSubscriptions = remaining;
+    await user.save();
+  }
+}
 async function notifyPartner(sender, couple, message) {
   const User = require('../models/User');
   const Message = require('../models/Message');
@@ -41,33 +70,13 @@ async function notifyPartner(sender, couple, message) {
       : message.type === 'video'
         ? 'Sent a video'
         : 'Sent a voice note';
-  const icon = sender.avatarUrl
-    ? (String(sender.avatarUrl).startsWith('http')
-      ? sender.avatarUrl
-      : `${process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_API_URL || ''}${sender.avatarUrl}`)
-    : '';
-  const payload = JSON.stringify({
+  const payload = {
     unread,
     title: sender.username || sender.name || 'Little Temptation',
     body: String(preview).slice(0, 140),
-    icon,
-  });
-  const remaining = [];
-  for (const sub of partner.pushSubscriptions) {
-    try {
-      await webpush.sendNotification({
-        endpoint: sub.endpoint,
-        keys: { p256dh: sub.p256dh, auth: sub.auth },
-      }, payload);
-      remaining.push(sub);
-    } catch (error) {
-      if (error.statusCode !== 404 && error.statusCode !== 410) remaining.push(sub);
-    }
-  }
-  if (remaining.length !== partner.pushSubscriptions.length) {
-    partner.pushSubscriptions = remaining;
-    await partner.save();
-  }
+    icon: iconFor(sender),
+  };
+  await deliver(partner, payload);
 }
 
-module.exports = { vapidPublicKey, notifyPartner };
+module.exports = { vapidPublicKey, notifyPartner, deliver, iconFor };

@@ -15,6 +15,7 @@ const userSchema = new mongoose.Schema({
     p256dh: String,
     auth: String,
   }],
+  lastMorningDate: { type: String, default: '' },
 }, { timestamps: true });
 
 userSchema.methods.toPublic = function toPublic() {
