@@ -12,7 +12,7 @@ interface Props {
 
 export default function LoginScreen({ onLogin }: Props) {
   const { refresh } = useSession();
-  const [step, setStep] = useState<"intro" | "action_choice" | "start_names" | "share_code" | "join_code">("intro");
+  const [step, setStep] = useState<"intro" | "how" | "action_choice" | "start_names" | "share_code" | "join_code">("intro");
   const [myName, setMyName] = useState("");
   const [myUsername, setMyUsername] = useState("");
   const [partnerName, setPartnerName] = useState("");
@@ -144,8 +144,10 @@ export default function LoginScreen({ onLogin }: Props) {
   }, [waiting, onLogin, refresh]);
 
   const handleBack = () => {
-    if (step === "action_choice") {
+    if (step === "how") {
       setStep("intro");
+    } else if (step === "action_choice") {
+      setStep("how");
     } else if (step === "start_names" || step === "join_code") {
       setStep("action_choice");
     } else if (step === "share_code") {
@@ -165,7 +167,7 @@ export default function LoginScreen({ onLogin }: Props) {
                 <p className={styles.welcomeText}>
                   A private little world for you and your person. Nobody else gets in.
                 </p>
-                <button className={styles.welcomeNext} onClick={() => setStep("action_choice")} aria-label="Continue">
+                <button className={styles.welcomeNext} onClick={() => setStep("how")} aria-label="Continue">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="5" y1="12" x2="19" y2="12" />
                     <polyline points="12 5 19 12 12 19" />
@@ -201,10 +203,41 @@ export default function LoginScreen({ onLogin }: Props) {
                 <path d="M180 78 C180 58 198 46 214 56 C226 40 252 46 252 70 C252 98 214 124 214 124 C214 124 180 100 180 78 Z" fill="#fff" stroke="#1a1a1a" strokeWidth="6" strokeLinejoin="round" />
               </svg>
               <div className={styles.welcomeDots}>
-                <span />
                 <span className={styles.dotOn} />
+                <span />
               </div>
             </div>
+          </div>
+        )}
+
+        {step === "how" && (
+          <div className={styles.guide}>
+            <div className={styles.guideTop}>
+              <p className={styles.guideKicker}>How it works</p>
+              <h1 className={styles.guideTitle}>A private space for two</h1>
+              <p className={styles.guideLead}>Only you and your partner can see the chat, stories, and games.</p>
+            </div>
+            <ol className={styles.guideSteps}>
+              <li>
+                <span>1</span>
+                <p><strong>One of you starts.</strong> Pick a username. Usernames are unique, so the same two people keep the same chat.</p>
+              </li>
+              <li>
+                <span>2</span>
+                <p><strong>A code appears.</strong> Send that code only to your partner.</p>
+              </li>
+              <li>
+                <span>3</span>
+                <p><strong>They join with the code</strong> and the username you chose for them.</p>
+              </li>
+              <li>
+                <span>4</span>
+                <p><strong>You are connected.</strong> Next time, the same usernames open the same messages.</p>
+              </li>
+            </ol>
+            <button type="button" className={styles.guideNext} onClick={() => setStep("action_choice")}>
+              Continue
+            </button>
           </div>
         )}
 
