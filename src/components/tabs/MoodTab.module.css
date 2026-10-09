@@ -82,6 +82,39 @@
 }
 .changeBtn:active { transform: scale(0.96); }
 
+.partnerMood {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 16px 0;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.partnerFace {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+}
+
+.partnerMood p {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.partnerMood span {
+  display: block;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+
 /* ── Picker Sheet ── */
 .pickerSheet {
   position: fixed;

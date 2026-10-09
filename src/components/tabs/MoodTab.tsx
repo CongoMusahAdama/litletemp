@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { io } from "socket.io-client";
 import styles from "./MoodTab.module.css";
-import { api } from "@/lib/api";
+import { API_URL, api, getToken, shownName } from "@/lib/api";
+import { useSession } from "@/context/SessionContext";
 
 // SVG face component — expression changes per mood
 function MoodFace({ mood }: { mood: string }) {
@@ -154,35 +156,52 @@ const moods = [
 ];
 
 const weekDays = ["M", "T", "W", "T", "F", "S", "S"];
-const initialWeekMoods: (string | null)[] = ["Happy", "In Love", null, "Missing You", "Calm", null, null];
 const tabs = ["This Week", "Insights", "This Month"] as const;
 type TabType = typeof tabs[number];
 
 export default function MoodTab() {
+  const { user, partner } = useSession();
+  const partnerName = shownName(partner, "Your person");
   const [todayMood, setTodayMood] = useState(moods[0]);
-  const [weekMoods, setWeekMoods] = useState<(string | null)[]>(initialWeekMoods);
+  const [weekMoods, setWeekMoods] = useState<(string | null)[]>(Array(7).fill(null));
+  const [partnerToday, setPartnerToday] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<TabType>("This Week");
   const [picking, setPicking] = useState(false);
   const [sent, setSent] = useState(false);
-  const [insights, setInsights] = useState({ mostFrequent: "Happy", partnerTop: "In Love", streak: 0 });
+  const [insights, setInsights] = useState({ mostFrequent: "", partnerTop: "", streak: 0 });
   const [monthMoods, setMonthMoods] = useState<Record<string, string>>({});
   const todayIdx = (new Date().getDay() + 6) % 7;
 
+  const applyWeek = (data: { dates: string[]; mine: Record<string, string>; partner?: Record<string, string>; today?: string }) => {
+    setWeekMoods(data.dates.map((date) => data.mine[date] || null));
+    const todayKey = data.today || new Date().toISOString().slice(0, 10);
+    const current = data.mine[todayKey];
+    const match = moods.find((item) => item.label === current);
+    if (match) setTodayMood(match);
+    setPartnerToday(data.partner?.[todayKey] || null);
+  };
+
   useEffect(() => {
-    api<{ dates: string[]; mine: Record<string, string> }>("/api/moods?range=week")
-      .then((data) => {
-        setWeekMoods(data.dates.map((date) => data.mine[date] || null));
-        const todayKey = new Date().toISOString().slice(0, 10);
-        const current = data.mine[todayKey];
-        const match = moods.find((item) => item.label === current);
-        if (match) setTodayMood(match);
-      })
+    api<{ dates: string[]; mine: Record<string, string>; partner: Record<string, string>; today: string }>("/api/moods?range=week")
+      .then(applyWeek)
       .catch(() => undefined);
     api<typeof insights>("/api/moods/insights").then(setInsights).catch(() => undefined);
     api<{ mine: Record<string, string> }>("/api/moods?range=month")
       .then((data) => setMonthMoods(data.mine))
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const socket = io(API_URL, { auth: { token: getToken() } });
+    socket.on("mood:updated", (payload: { date: string; mood: string; userId: string }) => {
+      if (String(payload.userId) === String(user.id)) return;
+      const todayKey = new Date().toISOString().slice(0, 10);
+      if (payload.date === todayKey) setPartnerToday(payload.mood);
+      api<typeof insights>("/api/moods/insights").then(setInsights).catch(() => undefined);
+    });
+    return () => { socket.disconnect(); };
+  }, [user]);
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long", month: "short", day: "numeric",
@@ -222,7 +241,7 @@ export default function MoodTab() {
           {todayMood.label}
         </p>
 
-        {sent && <p className={styles.sentMsg}>Mood shared with babe!</p>}
+        {sent && <p className={styles.sentMsg}>Mood shared with {partnerName}</p>}
 
         <button
           id="btn-change-mood"
@@ -232,6 +251,16 @@ export default function MoodTab() {
         >
           {picking ? "Cancel" : "Change Mood"}
         </button>
+      </div>
+
+      <div className={styles.partnerMood}>
+        <div className={styles.partnerFace}>
+          <MoodFace mood={partnerToday || "Neutral"} />
+        </div>
+        <p>
+          <span>{partnerName}</span>
+          {partnerToday ? `is feeling ${partnerToday}` : "has not shared a mood today"}
+        </p>
       </div>
 
       {/* Mood Picker Sheet */}
