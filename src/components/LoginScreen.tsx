@@ -202,7 +202,7 @@ export default function LoginScreen({ onLogin }: Props) {
 
   const handleBack = () => {
     if (step === "login") {
-      setStep("intro");
+      setStep("action_choice");
     } else if (step === "how") {
       setStep("intro");
     } else if (step === "action_choice") {
@@ -454,6 +454,25 @@ export default function LoginScreen({ onLogin }: Props) {
                 <div className={styles.cardInfo}>
                   <h3>Join my Partner</h3>
                   <p>I have a pairing code</p>
+                </div>
+              </button>
+
+              <button
+                className={`${styles.pickCard} ${styles.cardMe}`}
+                onClick={() => setStep("login")}
+              >
+                <div className={styles.cardGraphic}>
+                  <div className={styles.graphicCircle}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '28px', height: '28px', color: '#10B981' }}>
+                      <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                      <polyline points="10 17 15 12 10 7"></polyline>
+                      <line x1="15" y1="12" x2="3" y2="12"></line>
+                    </svg>
+                  </div>
+                </div>
+                <div className={styles.cardInfo}>
+                  <h3>Sign In</h3>
+                  <p>I already have an account</p>
                 </div>
               </button>
             </div>
