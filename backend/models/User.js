@@ -4,6 +4,7 @@ const userSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, maxlength: 40 },
   username: { type: String, trim: true, sparse: true, unique: true, maxlength: 32 },
   pinHash: { type: String },
+  passwordHash: { type: String },
   avatarUrl: { type: String },
   coupleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Couple', index: true },
   notifications: { type: Boolean, default: true },
@@ -30,6 +31,7 @@ userSchema.methods.toPublic = function toPublic() {
     theme: this.theme,
     bubbleColor: this.bubbleColor || '#FBBF24',
     hasPin: Boolean(this.pinHash),
+    hasPassword: Boolean(this.passwordHash),
   };
 };
 

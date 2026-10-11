@@ -7,16 +7,19 @@ function clock(date) {
 }
 
 function presentMessage(message) {
+  const opened = message.viewOnce && message.viewedByPartner;
   return {
     id: message._id,
     senderId: message.senderId,
     text: message.isDeleted ? undefined : message.text,
-    mediaUrl: message.isDeleted ? undefined : message.mediaUrl,
+    mediaUrl: (message.isDeleted || opened) ? undefined : message.mediaUrl,
     type: message.type,
     replyToId: message.replyToId || null,
     isDeleted: message.isDeleted,
     isEdited: message.isEdited,
     read: message.readByPartner,
+    viewOnce: message.viewOnce || false,
+    viewedByPartner: message.viewedByPartner || false,
     time: clock(message.createdAt),
     createdAt: message.createdAt,
   };

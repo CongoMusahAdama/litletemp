@@ -1,4 +1,5 @@
 const express = require('express');
+const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const Couple = require('../models/Couple');
 const Message = require('../models/Message');
@@ -250,6 +251,46 @@ router.get('/me', requireAuth, async (req, res, next) => {
       couple: req.couple ? presentCouple(req.couple, req.user) : null,
       partner: partner ? partner.toPublic() : null,
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Login with username + password (after password has been set)
+router.post('/login', async (req, res, next) => {
+  try {
+    const username = cleanUsername(req.body.username);
+    const password = String(req.body.password || '').trim();
+    if (!usernameOk(username) || !password) {
+      return res.status(400).json({ error: 'Enter your username and password' });
+    }
+    const user = await findUsername(username);
+    if (!user) return res.status(401).json({ error: 'Username or password is incorrect' });
+    if (!user.passwordHash) {
+      // Legacy user — no password yet, fall back to bond-code flow
+      return res.status(403).json({ error: 'no_password', message: 'Please use the pairing code to sign in and set a password.' });
+    }
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) return res.status(401).json({ error: 'Username or password is incorrect' });
+    const couple = user.coupleId ? await Couple.findById(user.coupleId) : null;
+    if (!couple) return res.status(403).json({ error: 'Account is not paired yet' });
+    return welcome(res, user, couple);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Set / update password (requires valid token)
+router.post('/set-password', requireAuth, async (req, res, next) => {
+  try {
+    const password = String(req.body.password || '').trim();
+    if (password.length < 4) {
+      return res.status(400).json({ error: 'Password must be at least 4 characters' });
+    }
+    const hash = await bcrypt.hash(password, 10);
+    req.user.passwordHash = hash;
+    await req.user.save();
+    res.json({ ok: true });
   } catch (error) {
     next(error);
   }

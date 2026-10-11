@@ -129,4 +129,25 @@ router.post('/read', async (req, res, next) => {
   }
 });
 
+router.post('/messages/:id/view', async (req, res, next) => {
+  try {
+    const message = await Message.findOne({ _id: req.params.id, coupleId: req.couple._id });
+    if (!message) return res.status(404).json({ error: 'Message not found' });
+    if (!message.viewOnce) return res.status(400).json({ error: 'Not a view-once message' });
+    // Only the recipient can mark it as viewed
+    if (String(message.senderId) === String(req.user._id)) {
+      return res.status(403).json({ error: 'Cannot open your own view-once message' });
+    }
+    if (message.viewedByPartner) return res.json(presentMessage(message));
+    message.viewedByPartner = true;
+    await message.save();
+    const payload = presentMessage(message);
+    const io = getIo();
+    if (io) io.to(`couple:${req.couple._id}`).emit('message:updated', payload);
+    res.json(payload);
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;

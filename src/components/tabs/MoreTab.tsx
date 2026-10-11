@@ -155,6 +155,9 @@ export default function MoreTab() {
   const [editName, setEditName] = useState(user?.name || "");
   const [editUsername, setEditUsername] = useState(user?.username ? `@${user.username}` : "");
   const [stats, setStats] = useState({ memories: 0, bucket: 0, daysToGo: null as number | null });
+  const [selectedBubble, setSelectedBubble] = useState<string>(
+    user?.bubbleColor || (typeof window !== "undefined" ? localStorage.getItem("lt_bubble") : "") || "#FBBF24"
+  );
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -164,6 +167,7 @@ export default function MoreTab() {
     setEditName(user.name);
     setEditUsername(user.username ? `@${user.username}` : "");
     setAvatarSrc(user.avatarUrl ? mediaUrl(user.avatarUrl) : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=FBBF24&color=1a1a1a&size=200&bold=true`);
+    if (user.bubbleColor) setSelectedBubble(user.bubbleColor);
   }, [user]);
 
   useEffect(() => {
@@ -380,8 +384,7 @@ export default function MoreTab() {
           {panel === "bubble" && (
             <div className={styles.bubbleGrid}>
               {BUBBLES.map((item) => {
-                const current = user?.bubbleColor || (typeof window !== "undefined" ? localStorage.getItem("lt_bubble") : "") || "#FBBF24";
-                const selected = current.toLowerCase() === item.color.toLowerCase();
+                const selected = selectedBubble.toLowerCase() === item.color.toLowerCase();
                 return (
                   <button
                     key={item.id}
@@ -390,6 +393,7 @@ export default function MoreTab() {
                     style={{ background: item.color }}
                     aria-label={item.id}
                     onClick={() => {
+                      setSelectedBubble(item.color);
                       applyBubble(item.color);
                       saveSetting({ bubbleColor: item.color }).catch(() => undefined);
                     }}

@@ -14,7 +14,7 @@ interface Props {
   onBack: () => void;
 }
 
-type MessageType = "text" | "voice" | "image" | "video";
+type MessageType = "text" | "voice" | "image" | "video" | "system";
 
 interface Message {
   id: string;
@@ -28,6 +28,8 @@ interface Message {
   isDeleted?: boolean;
   isEdited?: boolean;
   replyToId?: string | null;
+  viewOnce?: boolean;
+  viewedByPartner?: boolean;
 }
 
 type ServerMessage = Omit<Message, "from"> & { senderId: string };
@@ -63,6 +65,8 @@ export default function ChatView({ onBack }: Props) {
   const [draftMedia, setDraftMedia] = useState<{ file: File; kind: "image" | "video"; preview: string } | null>(null);
   const [sendingMedia, setSendingMedia] = useState(false);
   const [viewer, setViewer] = useState<{ url: string; kind: "image" | "video" } | null>(null);
+  const [viewOnceMode, setViewOnceMode] = useState(false);
+  const [partnerAvatarViewer, setPartnerAvatarViewer] = useState(false);
   const chatTitle = shownName(partner)
     || (couple?.expectedPartnerName && couple.expectedPartnerName !== user?.name ? couple.expectedPartnerName : "")
     || "My Babe";
@@ -241,9 +245,10 @@ export default function ChatView({ onBack }: Props) {
     setSendingMedia(true);
     try {
       const uploaded = await uploadFile(draftMedia.file);
-      socketRef.current?.emit("message:send", { type: draftMedia.kind, mediaUrl: uploaded.url });
+      socketRef.current?.emit("message:send", { type: draftMedia.kind, mediaUrl: uploaded.url, viewOnce: viewOnceMode });
       URL.revokeObjectURL(draftMedia.preview);
       setDraftMedia(null);
+      setViewOnceMode(false);
     } catch {
       setStreakNote("Could not send that");
     } finally {
@@ -463,14 +468,20 @@ export default function ChatView({ onBack }: Props) {
           </svg>
         </button>
 
-        <div className={styles.avatarWrap}>
+        <button
+          className={styles.avatarWrap}
+          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+          onClick={() => setPartnerAvatarViewer(true)}
+          aria-label="View partner photo"
+          title="Tap to view photo"
+        >
           <img
             src={partner?.avatarUrl ? mediaUrl(partner.avatarUrl) : `https://ui-avatars.com/api/?name=${encodeURIComponent(chatTitle)}&background=F97316&color=fff&size=80`}
             alt="Partner"
             className={styles.avatarImg}
           />
-          <span className={styles.onlineBadge} />
-        </div>
+          <span className={styles.onlineBadge} style={{ background: partnerOnline ? '#22c55e' : '#ef4444' }} />
+        </button>
 
         <div className={styles.chatInfo}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
@@ -489,7 +500,9 @@ export default function ChatView({ onBack }: Props) {
               🔥 {streak}
             </button>
           </div>
-          <p className={styles.chatStatus}>{call.notice || streakNote || (partnerOnline ? "Online" : couple?.status === "pending" ? "Waiting to join" : "Offline")}</p>
+          <p className={styles.chatStatus} style={{ color: call.notice || streakNote ? '#22c55e' : partnerOnline ? '#22c55e' : '#ef4444' }}>
+            {call.notice || streakNote || (partnerOnline ? "Online" : couple?.status === "pending" ? "Waiting to join" : "Offline")}
+          </p>
         </div>
 
         <div className={styles.headerActions}>
@@ -573,7 +586,16 @@ export default function ChatView({ onBack }: Props) {
 
         {messages.map((msg) => {
           const repliedMsg = msg.replyToId ? messages.find(m => m.id === msg.replyToId) : null;
-          
+
+          // System message (mood change etc.)
+          if (msg.type === "system") {
+            return (
+              <div key={msg.id} className={styles.systemRow}>
+                <span className={styles.systemBubble}>{msg.text}</span>
+              </div>
+            );
+          }
+
           return (
             <div
               key={msg.id}
@@ -606,35 +628,87 @@ export default function ChatView({ onBack }: Props) {
                     </div>
                   )}
 
-                  {msg.type === "image" && msg.mediaUrl && (
-                    <button type="button" className={styles.mediaFrame} onClick={() => setViewer({ url: msg.mediaUrl || "", kind: "image" })}>
-                      <img src={msg.mediaUrl} alt="" className={styles.mediaImg} />
-                      <span className={styles.mediaTime}>
-                        {msg.time}
-                        {msg.from === "me" && <DoubleCheck read={msg.read} light />}
-                      </span>
-                    </button>
+                  {msg.type === "image" && (
+                    msg.viewOnce && msg.from !== "me" && !msg.viewedByPartner ? (
+                      // View-once image — recipient taps to open
+                      <button type="button" className={styles.viewOnceFrame} onClick={async () => {
+                        await api(`/api/chat/messages/${msg.id}/view`, { method: "POST" }).catch(() => undefined);
+                        setViewer({ url: msg.mediaUrl || "", kind: "image" });
+                      }}>
+                        <span className={styles.viewOnceIcon}>👁️</span>
+                        <span className={styles.viewOnceLabel}>Photo · Tap to open once</span>
+                        <span className={styles.mediaTime}>{msg.time}</span>
+                      </button>
+                    ) : msg.viewOnce && (msg.viewedByPartner || msg.from === "me") ? (
+                      // View-once already opened or is sender's own
+                      <div className={`${styles.bubble} ${msg.from === "me" ? styles.bubbleMe : styles.bubbleBabe}`} style={{ opacity: 0.7, fontStyle: 'italic' }}>
+                        <p className={styles.bubbleText}>{msg.from === "me" ? "📷 Photo · View once sent" : "📷 Photo · Opened"}</p>
+                        <span className={styles.bubbleTime}>{msg.time}{msg.from === "me" && <DoubleCheck read={msg.read} />}</span>
+                      </div>
+                    ) : msg.mediaUrl ? (
+                      // Normal image
+                      <button type="button" className={styles.mediaFrame} onClick={() => setViewer({ url: msg.mediaUrl || "", kind: "image" })}>
+                        <img src={msg.mediaUrl} alt="" className={styles.mediaImg} />
+                        <span className={styles.mediaTime}>
+                          {msg.time}
+                          {msg.from === "me" && <DoubleCheck read={msg.read} light />}
+                        </span>
+                      </button>
+                    ) : null
                   )}
 
-                  {msg.type === "video" && msg.mediaUrl && (
-                    <button type="button" className={styles.mediaFrame} onClick={() => setViewer({ url: msg.mediaUrl || "", kind: "video" })}>
-                      <video src={msg.mediaUrl} className={styles.mediaImg} muted playsInline preload="metadata" />
-                      <span className={styles.playBadge}>▶</span>
-                      <span className={styles.mediaTime}>
-                        {msg.time}
-                        {msg.from === "me" && <DoubleCheck read={msg.read} light />}
-                      </span>
-                    </button>
+                  {msg.type === "video" && (
+                    msg.viewOnce && msg.from !== "me" && !msg.viewedByPartner ? (
+                      <button type="button" className={styles.viewOnceFrame} onClick={async () => {
+                        await api(`/api/chat/messages/${msg.id}/view`, { method: "POST" }).catch(() => undefined);
+                        setViewer({ url: msg.mediaUrl || "", kind: "video" });
+                      }}>
+                        <span className={styles.viewOnceIcon}>👁️</span>
+                        <span className={styles.viewOnceLabel}>Video · Tap to open once</span>
+                        <span className={styles.mediaTime}>{msg.time}</span>
+                      </button>
+                    ) : msg.viewOnce && (msg.viewedByPartner || msg.from === "me") ? (
+                      <div className={`${styles.bubble} ${msg.from === "me" ? styles.bubbleMe : styles.bubbleBabe}`} style={{ opacity: 0.7, fontStyle: 'italic' }}>
+                        <p className={styles.bubbleText}>{msg.from === "me" ? "🎥 Video · View once sent" : "🎥 Video · Opened"}</p>
+                        <span className={styles.bubbleTime}>{msg.time}{msg.from === "me" && <DoubleCheck read={msg.read} />}</span>
+                      </div>
+                    ) : msg.mediaUrl ? (
+                      <button type="button" className={styles.mediaFrame} onClick={() => setViewer({ url: msg.mediaUrl || "", kind: "video" })}>
+                        <video src={msg.mediaUrl} className={styles.mediaImg} muted playsInline preload="metadata" />
+                        <span className={styles.playBadge}>▶</span>
+                        <span className={styles.mediaTime}>
+                          {msg.time}
+                          {msg.from === "me" && <DoubleCheck read={msg.read} light />}
+                        </span>
+                      </button>
+                    ) : null
                   )}
 
-                  {msg.type === "voice" && msg.mediaUrl && (
-                    <div className={`${styles.bubble} ${msg.from === "me" ? styles.bubbleMe : styles.bubbleBabe}`}>
-                      <VoiceNote src={msg.mediaUrl} />
-                      <span className={styles.bubbleTime}>
-                        {msg.time}
-                        {msg.from === "me" && <DoubleCheck read={msg.read} />}
-                      </span>
-                    </div>
+                  {msg.type === "voice" && (
+                    msg.viewOnce && msg.from !== "me" && !msg.viewedByPartner ? (
+                      <div className={`${styles.bubble} ${styles.bubbleBabe}`}>
+                        <button type="button" style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', fontSize: 14, color: 'inherit' }}
+                          onClick={async () => {
+                            await api(`/api/chat/messages/${msg.id}/view`, { method: "POST" }).catch(() => undefined);
+                          }}>
+                          <span>👁️</span><span>Voice · Tap to play once</span>
+                        </button>
+                        <span className={styles.bubbleTime}>{msg.time}</span>
+                      </div>
+                    ) : msg.viewOnce && (msg.viewedByPartner || msg.from === "me") ? (
+                      <div className={`${styles.bubble} ${msg.from === "me" ? styles.bubbleMe : styles.bubbleBabe}`} style={{ opacity: 0.7, fontStyle: 'italic' }}>
+                        <p className={styles.bubbleText}>{msg.from === "me" ? "🎙️ Voice · View once sent" : "🎙️ Voice · Played"}</p>
+                        <span className={styles.bubbleTime}>{msg.time}{msg.from === "me" && <DoubleCheck read={msg.read} />}</span>
+                      </div>
+                    ) : msg.mediaUrl ? (
+                      <div className={`${styles.bubble} ${msg.from === "me" ? styles.bubbleMe : styles.bubbleBabe}`}>
+                        <VoiceNote src={msg.mediaUrl} />
+                        <span className={styles.bubbleTime}>
+                          {msg.time}
+                          {msg.from === "me" && <DoubleCheck read={msg.read} />}
+                        </span>
+                      </div>
+                    ) : null
                   )}
 
                   {msg.type === "text" && msg.text && (
@@ -672,7 +746,14 @@ export default function ChatView({ onBack }: Props) {
             ? <video src={draftMedia.preview} className={styles.previewMedia} controls playsInline />
             : <img src={draftMedia.preview} alt="" className={styles.previewMedia} />}
           <div className={styles.previewActions}>
-            <button type="button" onClick={() => { URL.revokeObjectURL(draftMedia.preview); setDraftMedia(null); }}>Cancel</button>
+            <button type="button" onClick={() => { URL.revokeObjectURL(draftMedia.preview); setDraftMedia(null); setViewOnceMode(false); }}>Cancel</button>
+            <button
+              type="button"
+              className={viewOnceMode ? styles.viewOnceToggleOn : styles.viewOnceToggle}
+              onClick={() => setViewOnceMode(v => !v)}
+            >
+              👁️ {viewOnceMode ? "View once ON" : "View once"}
+            </button>
             <button type="button" className={styles.previewSend} onClick={sendDraft} disabled={sendingMedia}>
               {sendingMedia ? "Sending..." : "Send"}
             </button>
@@ -685,6 +766,19 @@ export default function ChatView({ onBack }: Props) {
           {viewer.kind === "video"
             ? <video src={viewer.url} className={styles.lightboxMedia} controls autoPlay playsInline onClick={(event) => event.stopPropagation()} />
             : <img src={viewer.url} alt="" className={styles.lightboxMedia} onClick={(event) => event.stopPropagation()} />}
+        </div>
+      )}
+
+      {/* Partner avatar full-screen viewer */}
+      {partnerAvatarViewer && (
+        <div className={styles.lightbox} onClick={() => setPartnerAvatarViewer(false)}>
+          <img
+            src={partner?.avatarUrl ? mediaUrl(partner.avatarUrl) : `https://ui-avatars.com/api/?name=${encodeURIComponent(chatTitle)}&background=F97316&color=fff&size=400`}
+            alt={chatTitle}
+            className={styles.lightboxMedia}
+            onClick={(e) => e.stopPropagation()}
+            style={{ borderRadius: '50%', maxWidth: 300, maxHeight: 300 }}
+          />
         </div>
       )}
 

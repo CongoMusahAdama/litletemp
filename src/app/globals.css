@@ -198,3 +198,13 @@ a { text-decoration: none; color: inherit; }
 .safe-top { padding-top: env(safe-area-inset-top); }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
 
+/* Screenshot / content protection (web-level deterrent) */
+img, video {
+  -webkit-touch-callout: none;
+  pointer-events: none;
+}
+/* Re-enable pointer events on interactive elements that contain media */
+button img, button video, a img,
+.lightbox img, .lightbox video {
+  pointer-events: auto;
+}

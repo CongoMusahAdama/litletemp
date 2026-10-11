@@ -5,7 +5,9 @@ export function noteAudio() {
   const Context = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Context) return null;
   if (!noteContext) noteContext = new Context();
-  if (noteContext.state === "suspended") void noteContext.resume();
+  if (noteContext.state === 'suspended' || noteContext.state === 'interrupted') {
+    void noteContext.resume();
+  }
   return noteContext;
 }
 
@@ -13,7 +15,7 @@ function voice(context: AudioContext, frequency: number, start: number, duration
   [1, 2, 3, 4].forEach((harmonic, index) => {
     const osc = context.createOscillator();
     const gain = context.createGain();
-    osc.type = "sine";
+    osc.type = 'sine';
     osc.frequency.value = frequency * harmonic;
     const amount = peak * [1, 0.28, 0.12, 0.05][index];
     gain.gain.setValueAtTime(0.0001, start);
@@ -29,18 +31,18 @@ function voice(context: AudioContext, frequency: number, start: number, duration
 function play(run: (context: AudioContext) => void) {
   const context = noteAudio();
   if (!context) return;
-  const start = () => run(context);
-  if (context.state === "suspended") {
-    void context.resume().then(start);
+  const doPlay = () => run(context);
+  if (context.state !== 'running') {
+    context.resume().then(doPlay).catch(() => undefined);
     return;
   }
-  start();
+  doPlay();
 }
 
 export function playSendTick() {
   play((context) => {
     const now = context.currentTime;
-    voice(context, 880, now, 0.16, 0.05);
+    voice(context, 880, now, 0.16, 0.06);
   });
 }
 
@@ -50,8 +52,8 @@ export function playMessageNote() {
   lastNote = stamp;
   play((context) => {
     const now = context.currentTime;
-    voice(context, 523.25, now, 0.7, 0.09);
-    voice(context, 659.25, now + 0.18, 0.85, 0.08);
-    voice(context, 783.99, now + 0.36, 1.05, 0.07);
+    voice(context, 523.25, now, 0.7, 0.1);
+    voice(context, 659.25, now + 0.18, 0.85, 0.09);
+    voice(context, 783.99, now + 0.36, 1.05, 0.08);
   });
 }

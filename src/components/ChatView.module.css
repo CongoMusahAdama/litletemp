@@ -919,3 +919,81 @@
   width: 18px;
   height: 18px;
 }
+
+/* ── System / Service Messages ── */
+.systemRow {
+  display: flex;
+  justify-content: center;
+  padding: 4px 16px;
+}
+
+.systemBubble {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 100px;
+  text-align: center;
+  font-style: italic;
+  max-width: 85%;
+}
+
+/* ── View-Once Media Frame ── */
+.viewOnceFrame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 160px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #1a1a1a 0%, #374151 100%);
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.viewOnceFrame:active { opacity: 0.8; }
+
+.viewOnceIcon {
+  font-size: 28px;
+}
+
+.viewOnceLabel {
+  font-size: 13px;
+  font-weight: 650;
+  opacity: 0.9;
+}
+
+/* ── View-Once Toggle in Draft Preview ── */
+.viewOnceToggle {
+  padding: 8px 14px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 650;
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  border: 1.5px solid rgba(255,255,255,0.3);
+  transition: all 0.2s;
+}
+
+.viewOnceToggleOn {
+  padding: 8px 14px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 700;
+  background: #6366f1;
+  color: #fff;
+  border: 1.5px solid #6366f1;
+  box-shadow: 0 3px 12px rgba(99,102,241,0.4);
+  transition: all 0.2s;
+}
+
+/* Screenshot protection overlay hint */
+.messages {
+  -webkit-user-select: none;
+  user-select: none;
+}

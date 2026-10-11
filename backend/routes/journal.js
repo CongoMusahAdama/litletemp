@@ -1,6 +1,8 @@
 const express = require('express');
 const JournalEntry = require('../models/JournalEntry');
+const Message = require('../models/Message');
 const { requireAuth, requireCouple } = require('../middleware/auth');
+const { presentMessage } = require('../lib/present');
 const { getIo } = require('../socket');
 
 const router = express.Router();
@@ -50,7 +52,16 @@ router.post('/', async (req, res, next) => {
     });
     const payload = present(entry);
     const io = getIo();
-    if (io) io.to(`couple:${req.couple._id}`).emit('journal:new', payload);
+    if (io) {
+      io.to(`couple:${req.couple._id}`).emit('journal:new', payload);
+      const systemMsg = await Message.create({
+        coupleId: req.couple._id,
+        senderId: req.user._id,
+        text: `📖 ${req.user.name} added a journal entry: "${title}"`,
+        type: 'system',
+      });
+      io.to(`couple:${req.couple._id}`).emit('message:new', presentMessage(systemMsg));
+    }
     res.status(201).json(payload);
   } catch (error) {
     next(error);

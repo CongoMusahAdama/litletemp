@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { io } from "socket.io-client";
 import styles from "./JournalTab.module.css";
-import { api, mediaUrl, uploadFile } from "@/lib/api";
+import { API_URL, api, getToken, mediaUrl, uploadFile } from "@/lib/api";
 
 interface Entry {
   id: string;
@@ -72,6 +73,27 @@ export default function JournalTab({ triggerNewEntry }: Props) {
     api<WishlistItem[]>("/api/wishlist")
       .then((rows) => setWishlist(rows.map((row) => ({ ...row, id: String(row.id) }))))
       .catch(() => undefined);
+
+    const socket = io(API_URL, { auth: { token: getToken() } });
+    socket.on("journal:new", (row: ServerEntry) => {
+      const formatted: Entry = {
+        ...row,
+        id: String(row.id),
+        image: row.image ? mediaUrl(row.image) : undefined,
+        media: (row.media || []).map((item) => ({ ...item, url: mediaUrl(item.url) })),
+      };
+      setEntries((prev) => [formatted, ...prev.filter((e) => e.id !== formatted.id)]);
+    });
+    socket.on("wishlist:new", (item: WishlistItem) => {
+      setWishlist((prev) => [{ ...item, id: String(item.id) }, ...prev.filter((w) => w.id !== String(item.id))]);
+    });
+    socket.on("wishlist:deleted", ({ id }: { id: string }) => {
+      setWishlist((prev) => prev.filter((w) => w.id !== String(id)));
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

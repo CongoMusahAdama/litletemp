@@ -35,7 +35,19 @@ app.use(cors({
   origin: allowedOrigins.includes('*') ? '*' : allowedOrigins,
 }));
 app.use(express.json({ limit: '2mb' }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve uploaded files from MongoDB instead of the filesystem
+const Upload = require('./models/Upload');
+app.get('/uploads/:filename', async (req, res) => {
+  try {
+    const doc = await Upload.findOne({ filename: req.params.filename });
+    if (!doc) return res.status(404).end();
+    res.set('Content-Type', doc.contentType);
+    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    res.send(doc.data);
+  } catch {
+    res.status(500).end();
+  }
+});
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, db: mongoose.connection.readyState === 1 ? 'up' : 'down' });

@@ -12,7 +12,11 @@ interface Props {
 
 export default function LoginScreen({ onLogin }: Props) {
   const { refresh } = useSession();
-  const [step, setStep] = useState<"intro" | "how" | "action_choice" | "start_names" | "share_code" | "join_code">("intro");
+  const [step, setStep] = useState<"login" | "intro" | "how" | "action_choice" | "start_names" | "share_code" | "join_code" | "set_password">("login");
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
   const [myName, setMyName] = useState("");
   const [myUsername, setMyUsername] = useState("");
   const [partnerName, setPartnerName] = useState("");
@@ -34,17 +38,64 @@ export default function LoginScreen({ onLogin }: Props) {
     setStep("join_code");
   };
 
+  const handleLogin = async () => {
+    if (!loginUsername.trim() || !loginPassword.trim()) return;
+    setLoading(true);
+    try {
+      const data = await api<{ token: string; user: { hasPassword: boolean }; returning: boolean }>("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ username: loginUsername.trim().toLowerCase(), password: loginPassword }),
+      });
+      setToken(data.token);
+      await refresh();
+      onLogin();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "";
+      if (msg === "no_password") {
+        // Legacy user — redirect to bond-code flow
+        setStep("intro");
+      } else {
+        Swal.fire({ title: "Sign in failed", text: msg || "Check your username and password", icon: "error", confirmButtonColor: "#1a1a1a" });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSetPassword = async () => {
+    if (newPassword.length < 4 || newPassword !== newPasswordConfirm) return;
+    setLoading(true);
+    try {
+      await api("/api/auth/set-password", {
+        method: "POST",
+        body: JSON.stringify({ password: newPassword }),
+      });
+      await refresh();
+      onLogin();
+    } catch (error) {
+      Swal.fire({ title: "Could not save password", text: error instanceof Error ? error.message : "Try again", icon: "error", confirmButtonColor: "#1a1a1a" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const generateCode = async () => {
     if (!myName.trim() || !partnerName.trim() || !usernameReady(myUsername) || !usernameReady(partnerUsername)) return;
     setLoading(true);
     try {
-      const data = await api<{ token: string; returning?: boolean; couple: { inviteCode: string } }>("/api/auth/start", {
+      const data = await api<{ token: string; returning?: boolean; user?: { hasPassword: boolean }; couple: { inviteCode: string } }>("/api/auth/start", {
         method: "POST",
         body: JSON.stringify({ myName, myUsername, partnerName, partnerUsername }),
       });
       setToken(data.token);
       if (data.returning) {
         await refresh();
+        // Prompt for password if not set
+        const meData = await api<{ user: { hasPassword: boolean } }>("/api/auth/me").catch(() => null);
+        if (meData && !meData.user.hasPassword) {
+          setStep("set_password");
+          return;
+        }
         await Swal.fire({
           title: "Welcome back",
           text: "Your old messages are still here.",
@@ -77,6 +128,12 @@ export default function LoginScreen({ onLogin }: Props) {
       });
       setToken(data.token);
       await refresh();
+      // After pairing, always prompt to set a password if not yet set
+      const meData = await api<{ user: { hasPassword: boolean } }>("/api/auth/me").catch(() => null);
+      if (meData && !meData.user.hasPassword) {
+        setStep("set_password");
+        return;
+      }
       await Swal.fire({
         title: data.returning ? "Welcome back" : "Bond Connected!",
         text: data.returning
@@ -158,7 +215,106 @@ export default function LoginScreen({ onLogin }: Props) {
   return (
     <div className={styles.screen}>
       <div className={styles.container}>
-        
+
+        {/* ── Quick Login ── */}
+        {step === "login" && (
+          <div className={styles.namesScreen}>
+            <div className={styles.headerPick} style={{ paddingTop: 40 }}>
+              <h1 className={styles.titlePick} style={{ fontSize: '30px' }}>Welcome back 💕</h1>
+              <p className={styles.subtitlePick}>Sign in with your username and password.</p>
+            </div>
+            <div className={styles.namesForm}>
+              <div className={styles.nameField}>
+                <label className={styles.nameLabel}>Username</label>
+                <input
+                  type="text"
+                  id="input-login-username"
+                  className={styles.nameInput}
+                  placeholder="your_username"
+                  value={loginUsername}
+                  onChange={e => setLoginUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+                  autoCapitalize="none"
+                  autoFocus
+                />
+              </div>
+              <div className={styles.nameField}>
+                <label className={styles.nameLabel}>Password</label>
+                <input
+                  type="password"
+                  id="input-login-password"
+                  className={styles.nameInput}
+                  placeholder="Your password"
+                  value={loginPassword}
+                  onChange={e => setLoginPassword(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleLogin()}
+                />
+              </div>
+            </div>
+            <button
+              id="btn-login"
+              className={styles.getStartedBtn}
+              onClick={handleLogin}
+              disabled={!loginUsername.trim() || !loginPassword.trim() || loading}
+            >
+              {loading ? <div className={styles.spinner} /> : "Sign In"}
+            </button>
+            <button
+              className={styles.backBtn}
+              onClick={() => setStep("intro")}
+              style={{ margin: "12px auto 20px" }}
+            >
+              First time? Pair with a bond code
+            </button>
+          </div>
+        )}
+
+        {/* ── Set Password (after first pairing) ── */}
+        {step === "set_password" && (
+          <div className={styles.namesScreen}>
+            <div className={styles.headerPick} style={{ paddingTop: 40 }}>
+              <h1 className={styles.titlePick}>Create your password</h1>
+              <p className={styles.subtitlePick}>You only need to do this once. Next time you sign in with your username and this password — no bond code needed.</p>
+            </div>
+            <div className={styles.namesForm}>
+              <div className={styles.nameField}>
+                <label className={styles.nameLabel}>New password</label>
+                <input
+                  type="password"
+                  id="input-new-password"
+                  className={styles.nameInput}
+                  placeholder="At least 4 characters"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div className={styles.nameField}>
+                <label className={styles.nameLabel}>Confirm password</label>
+                <input
+                  type="password"
+                  id="input-confirm-password"
+                  className={styles.nameInput}
+                  placeholder="Same password again"
+                  value={newPasswordConfirm}
+                  onChange={e => setNewPasswordConfirm(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleSetPassword()}
+                />
+                {newPasswordConfirm && newPassword !== newPasswordConfirm && (
+                  <p className={styles.nameHint}>Passwords do not match</p>
+                )}
+              </div>
+            </div>
+            <button
+              id="btn-set-password"
+              className={styles.getStartedBtn}
+              onClick={handleSetPassword}
+              disabled={newPassword.length < 4 || newPassword !== newPasswordConfirm || loading}
+            >
+              {loading ? <div className={styles.spinner} /> : "Save Password & Enter"}
+            </button>
+          </div>
+        )}
+
         {step === "intro" && (
           <div className={styles.welcome}>
             <div className={styles.welcomeTop}>

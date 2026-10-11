@@ -23,6 +23,7 @@ async function saveMessage(user, couple, body) {
     type,
     mediaUrl: mediaUrl || undefined,
     replyToId: body.replyToId || undefined,
+    viewOnce: type !== 'text' && Boolean(body.viewOnce),
   });
   const streak = await touchStreak(couple, user._id);
   const { getIo } = require('../socket');

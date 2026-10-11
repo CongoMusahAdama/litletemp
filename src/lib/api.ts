@@ -11,6 +11,7 @@ export type PublicUser = {
   theme: "light" | "dark";
   bubbleColor?: string;
   hasPin: boolean;
+  hasPassword: boolean;
 };
 
 export type CoupleInfo = {

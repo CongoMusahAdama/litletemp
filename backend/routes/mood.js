@@ -1,7 +1,9 @@
 const express = require('express');
 const Mood = require('../models/Mood');
+const Message = require('../models/Message');
+const User = require('../models/User');
 const { requireAuth, requireCouple } = require('../middleware/auth');
-const { dayKey } = require('../lib/present');
+const { dayKey, presentMessage } = require('../lib/present');
 const { getIo } = require('../socket');
 
 const router = express.Router();
@@ -91,6 +93,22 @@ router.post('/', async (req, res, next) => {
     const payload = { date, mood: saved.mood, userId: req.user._id };
     const io = getIo();
     if (io) io.to(`couple:${req.couple._id}`).emit('mood:updated', payload);
+
+    // Emoji map for mood
+    const moodEmoji = {
+      'Happy': '😊', 'In Love': '🥰', 'Excited': '🎉', 'Calm': '😌',
+      'Missing You': '🥺', 'Tired': '😴', 'Sad': '😢', 'Angry': '😠', 'Neutral': '😐',
+    };
+    const emoji = moodEmoji[mood] || '';
+    const systemText = `${req.user.name} is now feeling ${mood} ${emoji}`;
+    const systemMsg = await Message.create({
+      coupleId: req.couple._id,
+      senderId: req.user._id,
+      text: systemText,
+      type: 'system',
+    });
+    if (io) io.to(`couple:${req.couple._id}`).emit('message:new', presentMessage(systemMsg));
+
     res.json(payload);
   } catch (error) {
     next(error);
