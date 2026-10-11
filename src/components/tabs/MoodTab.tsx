@@ -167,6 +167,11 @@ export default function MoodTab() {
   const [partnerToday, setPartnerToday] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<TabType>("This Week");
   const [picking, setPicking] = useState(false);
+
+  useEffect(() => {
+    document.body.style.overflow = picking ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [picking]);
   const [sent, setSent] = useState(false);
   const [insights, setInsights] = useState({ mostFrequent: "", partnerTop: "", streak: 0 });
   const [monthMoods, setMonthMoods] = useState<Record<string, string>>({});

@@ -12,7 +12,7 @@ interface Props {
 
 export default function LoginScreen({ onLogin }: Props) {
   const { refresh } = useSession();
-  const [step, setStep] = useState<"login" | "intro" | "how" | "action_choice" | "start_names" | "share_code" | "join_code" | "set_password">("login");
+  const [step, setStep] = useState<"login" | "intro" | "how" | "action_choice" | "start_names" | "share_code" | "join_code" | "set_password">("intro");
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -201,7 +201,9 @@ export default function LoginScreen({ onLogin }: Props) {
   }, [waiting, onLogin, refresh]);
 
   const handleBack = () => {
-    if (step === "how") {
+    if (step === "login") {
+      setStep("intro");
+    } else if (step === "how") {
       setStep("intro");
     } else if (step === "action_choice") {
       setStep("how");
@@ -260,10 +262,10 @@ export default function LoginScreen({ onLogin }: Props) {
             </button>
             <button
               className={styles.backBtn}
-              onClick={() => setStep("intro")}
+              onClick={handleBack}
               style={{ margin: "12px auto 20px" }}
             >
-              First time? Pair with a bond code
+              ← Back
             </button>
           </div>
         )}
@@ -363,6 +365,13 @@ export default function LoginScreen({ onLogin }: Props) {
                 <span />
               </div>
             </div>
+            <button
+              className={styles.backBtn}
+              onClick={() => setStep("login")}
+              style={{ margin: "0 auto 16px", fontSize: "14px" }}
+            >
+              Already have an account? Sign in
+            </button>
           </div>
         )}
 

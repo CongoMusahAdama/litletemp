@@ -124,6 +124,8 @@
   display: flex;
   align-items: flex-end;
   animation: fadeIn 0.2s ease;
+  touch-action: none;
+  overscroll-behavior: contain;
 }
 
 .pickerContent {
@@ -137,6 +139,8 @@
   max-height: 80vh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .pickerHandle {
