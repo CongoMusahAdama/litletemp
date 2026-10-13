@@ -12,8 +12,8 @@ interface Entry {
   textColor: string;
   date: string;
   favorite?: boolean;
-  image?: string; // Legacy for initial entries
-  media?: { url: string; type: "image" | "video" }[];
+  image?: string;
+  media?: { url: string; type: "image" | "video" | "audio" }[];
 }
 
 interface ServerEntry {
@@ -25,7 +25,7 @@ interface ServerEntry {
   date: string;
   favorite: boolean;
   image?: string;
-  media?: { url: string; type: "image" | "video" }[];
+  media?: { url: string; type: "image" | "video" | "audio" }[];
 }
 
 const filters = ["Recent", "Favorites", "Photos", "Voice", "Wishlist"];
@@ -41,14 +41,24 @@ interface Props {
   triggerNewEntry?: number;
 }
 
+function formatEntry(row: ServerEntry): Entry {
+  const media = (row.media || []).map((item) => ({ ...item, url: mediaUrl(item.url) }));
+  const image = media.find((item) => item.type === "image")?.url || (row.image ? mediaUrl(row.image) : undefined);
+  return { ...row, id: String(row.id), image, media };
+}
+
 export default function JournalTab({ triggerNewEntry }: Props) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [activeFilter, setActiveFilter] = useState("Recent");
   const [showNewEntry, setShowNewEntry] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newBody, setNewBody] = useState("");
-  const [newMedia, setNewMedia] = useState<{ url: string; type: "image" | "video" }[]>([]);
+  const [newMedia, setNewMedia] = useState<{ url: string; type: "image" | "video" | "audio" }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const recRef = useRef<{ stream: MediaStream; ctx: AudioContext; processor: ScriptProcessorNode; chunks: Float32Array[]; started: number } | null>(null);
+  const recordingTimerRef = useRef<number | null>(null);
 
   // Wishlist state
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
@@ -63,12 +73,7 @@ export default function JournalTab({ triggerNewEntry }: Props) {
 
   useEffect(() => {
     api<ServerEntry[]>("/api/journal")
-      .then((rows) => setEntries(rows.map((row) => ({
-        ...row,
-        id: String(row.id),
-        image: row.image ? mediaUrl(row.image) : undefined,
-        media: (row.media || []).map((item) => ({ ...item, url: mediaUrl(item.url) })),
-      }))))
+      .then((rows) => setEntries(rows.map(formatEntry)))
       .catch(() => undefined);
     api<WishlistItem[]>("/api/wishlist")
       .then((rows) => setWishlist(rows.map((row) => ({ ...row, id: String(row.id) }))))
@@ -76,13 +81,12 @@ export default function JournalTab({ triggerNewEntry }: Props) {
 
     const socket = io(API_URL, { auth: { token: getToken() } });
     socket.on("journal:new", (row: ServerEntry) => {
-      const formatted: Entry = {
-        ...row,
-        id: String(row.id),
-        image: row.image ? mediaUrl(row.image) : undefined,
-        media: (row.media || []).map((item) => ({ ...item, url: mediaUrl(item.url) })),
-      };
+      const formatted = formatEntry(row);
       setEntries((prev) => [formatted, ...prev.filter((e) => e.id !== formatted.id)]);
+    });
+    socket.on("journal:updated", (row: ServerEntry) => {
+      const formatted = formatEntry(row);
+      setEntries((prev) => prev.map((entry) => entry.id === formatted.id ? formatted : entry));
     });
     socket.on("wishlist:new", (item: WishlistItem) => {
       setWishlist((prev) => [{ ...item, id: String(item.id) }, ...prev.filter((w) => w.id !== String(item.id))]);
@@ -127,12 +131,7 @@ export default function JournalTab({ triggerNewEntry }: Props) {
           media: newMedia,
         }),
       });
-      setEntries([{
-        ...saved,
-        id: String(saved.id),
-        image: saved.image ? mediaUrl(saved.image) : undefined,
-        media: (saved.media || []).map((item) => ({ ...item, url: mediaUrl(item.url) })),
-      }, ...entries]);
+      setEntries((prev) => [formatEntry(saved), ...prev]);
       setNewTitle("");
       setNewBody("");
       setNewMedia([]);
@@ -157,10 +156,76 @@ export default function JournalTab({ triggerNewEntry }: Props) {
     }
   };
 
+  const toggleFavorite = async (entry: Entry) => {
+    const saved = await api<ServerEntry>(`/api/journal/${entry.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ favorite: !entry.favorite }),
+    }).catch(() => null);
+    if (!saved) return;
+    const next = formatEntry(saved);
+    setEntries((prev) => prev.map((item) => item.id === next.id ? next : item));
+  };
+
+  const stopRecording = async (save: boolean) => {
+    const rec = recRef.current;
+    recRef.current = null;
+    if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
+    setIsRecording(false);
+    if (!rec) return;
+    rec.processor.disconnect();
+    rec.stream.getTracks().forEach((track) => track.stop());
+    const sampleRate = rec.ctx.sampleRate;
+    await rec.ctx.close();
+    if (!save || rec.chunks.length === 0) return;
+    const file = new File([encodeWav(rec.chunks, sampleRate)], "voice.wav", { type: "audio/wav" });
+    const uploaded = await uploadFile(file);
+    const saved = await api<ServerEntry>("/api/journal", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Voice note",
+        text: "",
+        media: [{ url: uploaded.url, type: "audio" }],
+      }),
+    });
+    setEntries((prev) => [formatEntry(saved), ...prev]);
+  };
+
+  const startRecording = async () => {
+    if (recRef.current) return;
+    const ctx = new AudioContext();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      if (ctx.state === "suspended") await ctx.resume();
+      const source = ctx.createMediaStreamSource(stream);
+      const processor = ctx.createScriptProcessor(4096, 1, 1);
+      const chunks: Float32Array[] = [];
+      processor.onaudioprocess = (event) => {
+        chunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+      };
+      const mute = ctx.createGain();
+      mute.gain.value = 0;
+      source.connect(processor);
+      processor.connect(mute);
+      mute.connect(ctx.destination);
+      recRef.current = { stream, ctx, processor, chunks, started: Date.now() };
+      setIsRecording(true);
+      setRecordingTime(0);
+      recordingTimerRef.current = window.setInterval(() => {
+        const current = recRef.current;
+        if (current) setRecordingTime(Math.floor((Date.now() - current.started) / 1000));
+      }, 250);
+    } catch {
+      await ctx.close();
+      setIsRecording(false);
+    }
+  };
+
   const isPhotosView = activeFilter === "Photos";
+  const isVoiceView = activeFilter === "Voice";
   const isWishlistView = activeFilter === "Wishlist";
   const visibleEntries = activeFilter === "Favorites" ? entries.filter(entry => entry.favorite) : entries;
-  const allPhotoEntries = entries.filter(e => e.image);
+  const allPhotoEntries = entries.filter(e => e.media?.some(item => item.type === "image") || e.image);
+  const voiceEntries = entries.filter(e => e.media?.some(item => item.type === "audio"));
 
   return (
     <div className={styles.tab}>
@@ -281,7 +346,7 @@ export default function JournalTab({ triggerNewEntry }: Props) {
         {isWishlistView ? (
           <div className={styles.wishlistContainer}>
             <div className={styles.wishlistAddCard}>
-              <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '16px', color: '#1a1a1a' }}>Add to Wishlist</h3>
+              <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '16px', color: 'var(--text-primary)' }}>Add to Wishlist</h3>
               <div className={styles.wishlistInputRow}>
                 <input 
                   className={styles.wishlistInput} 
@@ -313,22 +378,38 @@ export default function JournalTab({ triggerNewEntry }: Props) {
           </div>
         ) : isPhotosView ? (
           <div className={styles.photoGrid}>
-            {allPhotoEntries.map((entry, idx) => (
-              <div
-                key={entry.id}
-                className={styles.photoItem}
-                style={{
-                  backgroundImage: `url(${entry.image})`,
-                  gridRow: idx === 0 ? "span 2" : "auto",
-                  gridColumn: idx === 2 ? "span 2" : "auto",
-                }}
-              >
+            {allPhotoEntries.length === 0 && <p className={styles.emptyNote}>No photos yet. Add one from a new journal entry.</p>}
+            {allPhotoEntries.map((entry) => (
+              <div key={entry.id} className={styles.photoItem}>
+                <img src={entry.image} alt={entry.title} />
                 <div className={styles.photoOverlay}>
                   <span className={styles.photoDate}>{entry.date}</span>
                   <h4 className={styles.photoTitle}>{entry.title}</h4>
                 </div>
               </div>
             ))}
+          </div>
+        ) : isVoiceView ? (
+          <div className={styles.grid}>
+            <div className={styles.heroCard}>
+              <div className={styles.heroContent}>
+                <h2 className={styles.heroTitle}>{isRecording ? `Recording ${recordingTime}s` : "Record a voice note"}</h2>
+                <button className={styles.heroBtn} onClick={() => isRecording ? void stopRecording(true) : void startRecording()}>
+                  {isRecording ? "Save voice note" : "Start recording"}
+                </button>
+                {isRecording && <button className={styles.heroBtn} onClick={() => void stopRecording(false)}>Cancel</button>}
+              </div>
+            </div>
+            {voiceEntries.length === 0 && <p className={styles.emptyNote}>No voice notes yet.</p>}
+            {voiceEntries.map((entry) => {
+              const audio = entry.media?.find((item) => item.type === "audio");
+              return (
+                <div key={entry.id} className={styles.card} style={{ background: "var(--bg-card)", color: "var(--text-primary)", border: "1px solid var(--border)" }}>
+                  <h3 className={styles.cardTitle}>{entry.title}</h3>
+                  {audio && <audio src={audio.url} controls style={{ width: "100%", marginTop: 12 }} />}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div className={styles.grid}>
@@ -382,6 +463,9 @@ export default function JournalTab({ triggerNewEntry }: Props) {
                   }}>
                     {entry.date}
                   </div>
+                  <button type="button" className={styles.heartBtn} onClick={() => void toggleFavorite(entry)} aria-label="Save memory">
+                    {entry.favorite ? "♥" : "♡"}
+                  </button>
                 </div>
                 <h3 className={styles.cardTitle} style={{ color: entry.image ? "#fff" : entry.textColor, position: 'relative', zIndex: 2 }}>
                   {entry.title}
@@ -395,4 +479,35 @@ export default function JournalTab({ triggerNewEntry }: Props) {
       </div>
     </div>
   );
+}
+
+function encodeWav(chunks: Float32Array[], sampleRate: number) {
+  const length = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const buffer = new ArrayBuffer(44 + length * 2);
+  const view = new DataView(buffer);
+  const write = (offset: number, text: string) => {
+    for (let i = 0; i < text.length; i += 1) view.setUint8(offset + i, text.charCodeAt(i));
+  };
+  write(0, "RIFF");
+  view.setUint32(4, 36 + length * 2, true);
+  write(8, "WAVE");
+  write(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  write(36, "data");
+  view.setUint32(40, length * 2, true);
+  let offset = 44;
+  chunks.forEach((chunk) => {
+    for (let i = 0; i < chunk.length; i += 1) {
+      const sample = Math.max(-1, Math.min(1, chunk[i]));
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+      offset += 2;
+    }
+  });
+  return new Blob([buffer], { type: "audio/wav" });
 }

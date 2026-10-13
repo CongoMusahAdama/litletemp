@@ -111,6 +111,17 @@
   background: #111;
 }
 
+.storyMissing {
+  position: absolute;
+  top: 46%;
+  left: 24px;
+  right: 24px;
+  z-index: 2;
+  text-align: center;
+  color: #fff;
+  font-weight: 700;
+}
+
 .viewerDock {
   flex-shrink: 0;
   padding: 8px 12px calc(12px + env(safe-area-inset-bottom));

@@ -2,7 +2,7 @@ const express = require('express');
 const JournalEntry = require('../models/JournalEntry');
 const Message = require('../models/Message');
 const { requireAuth, requireCouple } = require('../middleware/auth');
-const { presentMessage } = require('../lib/present');
+const { presentMessage, publicMedia } = require('../lib/present');
 const { getIo } = require('../socket');
 
 const router = express.Router();
@@ -17,8 +17,11 @@ function present(entry) {
     color: entry.color,
     textColor: entry.textColor,
     favorite: entry.favorite,
-    media: entry.media || [],
-    image: entry.media?.[0]?.url || '',
+    media: (entry.media || []).map((item) => ({
+      url: publicMedia(item.url),
+      type: item.type,
+    })),
+    image: publicMedia((entry.media || []).find((item) => item.type === 'image')?.url || ''),
     authorId: entry.authorId,
     date: new Date(entry.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     createdAt: entry.createdAt,
@@ -48,7 +51,13 @@ router.post('/', async (req, res, next) => {
       mood: String(req.body.mood || 'Happy').slice(0, 40),
       color: String(req.body.color || '#FBBF24').slice(0, 20),
       textColor: String(req.body.textColor || '#1a1a1a').slice(0, 20),
-      media: Array.isArray(req.body.media) ? req.body.media.slice(0, 8) : [],
+      favorite: Boolean(req.body.favorite),
+      media: Array.isArray(req.body.media)
+        ? req.body.media.slice(0, 8).map((item) => ({
+          url: publicMedia(item?.url).slice(0, 500),
+          type: ['image', 'video', 'audio'].includes(item?.type) ? item.type : 'image',
+        })).filter((item) => item.url)
+        : [],
     });
     const payload = present(entry);
     const io = getIo();

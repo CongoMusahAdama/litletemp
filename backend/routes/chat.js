@@ -57,8 +57,17 @@ router.post('/streak', async (req, res, next) => {
 
 router.get('/messages', async (req, res, next) => {
   try {
-    const messages = await Message.find({ coupleId: req.couple._id }).sort({ createdAt: 1 }).limit(2000);
-    res.json(messages.map(presentMessage));
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 80));
+    const query = { coupleId: req.couple._id };
+    if (req.query.before) {
+      const before = new Date(String(req.query.before));
+      if (Number.isNaN(before.getTime())) return res.status(400).json({ error: 'Invalid cursor' });
+      query.createdAt = { $lt: before };
+    }
+    const rows = await Message.find(query).sort({ createdAt: -1 }).limit(limit + 1);
+    const hasMore = rows.length > limit;
+    const page = rows.slice(0, limit).reverse();
+    res.json({ messages: page.map(presentMessage), hasMore });
   } catch (error) {
     next(error);
   }

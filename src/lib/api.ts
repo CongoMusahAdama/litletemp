@@ -12,6 +12,7 @@ export type PublicUser = {
   bubbleColor?: string;
   hasPin: boolean;
   hasPassword: boolean;
+  accessId?: string;
 };
 
 export type CoupleInfo = {
@@ -23,6 +24,7 @@ export type CoupleInfo = {
   currentStreak: number;
   wallpaperUrl: string;
   partnerId: string | null;
+  gatePassword?: string;
 };
 
 const TOKEN_KEY = "lt_token";

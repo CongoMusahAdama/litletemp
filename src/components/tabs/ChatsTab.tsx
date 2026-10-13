@@ -39,12 +39,19 @@ export default function ChatsTab({ onOpenChat }: Props) {
   const [watching, setWatching] = useState<Story | null>(null);
   const [comment, setComment] = useState("");
   const [adding, setAdding] = useState(false);
+  const [storyBroken, setStoryBroken] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     refresh().catch(() => undefined);
     api<Summary>("/api/chat/summary").then(setSummary).catch(() => undefined);
     api<Story[]>("/api/stories").then(setStories).catch(() => undefined);
+    const reloadStories = () => {
+      if (document.visibilityState === "visible") {
+        api<Story[]>("/api/stories").then(setStories).catch(() => undefined);
+      }
+    };
+    document.addEventListener("visibilitychange", reloadStories);
     const socket = io(API_URL, { auth: { token: getToken() } });
     const apply = (story: Story) => {
       setStories((prev) => prev.some((item) => item.id === story.id) ? prev.map((item) => item.id === story.id ? story : item) : [story, ...prev]);
@@ -52,7 +59,10 @@ export default function ChatsTab({ onOpenChat }: Props) {
     };
     socket.on("story:updated", apply);
     socket.on("story:new", apply);
-    return () => { socket.disconnect(); };
+    return () => {
+      document.removeEventListener("visibilitychange", reloadStories);
+      socket.disconnect();
+    };
   }, []);
 
   const mine = stories.filter((story) => String(story.authorId) === String(user?.id));
@@ -76,6 +86,7 @@ export default function ChatsTab({ onOpenChat }: Props) {
   };
 
   const openStory = (story: Story) => {
+    setStoryBroken(false);
     setWatching(story);
     setComment("");
     if (!story.seen && String(story.authorId) !== String(user?.id)) {
@@ -221,9 +232,10 @@ export default function ChatsTab({ onOpenChat }: Props) {
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
+          {storyBroken && <p className={styles.storyMissing}>This story did not load. Add it again if it stays blank.</p>}
           {watching.mediaType === "video"
-            ? <video src={mediaUrl(watching.mediaUrl)} className={styles.viewerMedia} autoPlay playsInline />
-            : <img src={mediaUrl(watching.mediaUrl)} alt="" className={styles.viewerMedia} />}
+            ? <video src={mediaUrl(watching.mediaUrl)} className={styles.viewerMedia} autoPlay playsInline onError={() => setStoryBroken(true)} />
+            : <img src={mediaUrl(watching.mediaUrl)} alt="" className={styles.viewerMedia} onError={() => setStoryBroken(true)} />}
           <div className={styles.viewerDock}>
             <div className={styles.viewerComments}>
               {(watching.comments || []).slice(-6).map((item) => (

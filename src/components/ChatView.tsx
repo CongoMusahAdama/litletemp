@@ -30,6 +30,7 @@ interface Message {
   replyToId?: string | null;
   viewOnce?: boolean;
   viewedByPartner?: boolean;
+  createdAt?: string;
 }
 
 type ServerMessage = Omit<Message, "from"> & { senderId: string };
@@ -91,6 +92,10 @@ export default function ChatView({ onBack }: Props) {
 
   // Socket state
   const socketRef = useRef<Socket | null>(null);
+  const hasMoreRef = useRef(false);
+  const loadingOlder = useRef(false);
+  const messagesStateRef = useRef(messages);
+  messagesStateRef.current = messages;
 
   const asView = (data: ServerMessage): Message => ({
     ...data,
@@ -102,8 +107,11 @@ export default function ChatView({ onBack }: Props) {
 
   useEffect(() => {
     if (!user) return;
-    api<ServerMessage[]>("/api/chat/messages")
-      .then((rows) => setMessages(rows.map(asView)))
+    api<{ messages: ServerMessage[]; hasMore: boolean }>("/api/chat/messages")
+      .then((page) => {
+        hasMoreRef.current = page.hasMore;
+        setMessages(page.messages.map(asView));
+      })
       .catch(() => setMessages([]));
     api("/api/chat/read", { method: "POST" }).catch(() => undefined);
 
@@ -561,6 +569,21 @@ export default function ChatView({ onBack }: Props) {
         onScroll={(event) => {
           const list = event.currentTarget;
           stickToBottom.current = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
+          if (list.scrollTop > 48 || !hasMoreRef.current || loadingOlder.current) return;
+          const oldest = messagesStateRef.current[0]?.createdAt;
+          if (!oldest) return;
+          loadingOlder.current = true;
+          stickToBottom.current = false;
+          const previousHeight = list.scrollHeight;
+          api<{ messages: ServerMessage[]; hasMore: boolean }>(`/api/chat/messages?before=${encodeURIComponent(oldest)}`)
+            .then((page) => {
+              hasMoreRef.current = page.hasMore;
+              setMessages((prev) => [...page.messages.map(asView), ...prev]);
+              requestAnimationFrame(() => {
+                list.scrollTop = list.scrollHeight - previousHeight;
+              });
+            })
+            .finally(() => { loadingOlder.current = false; });
         }} 
         style={wallpaper ? { backgroundImage: `url(${wallpaper})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
       >

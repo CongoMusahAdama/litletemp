@@ -20,3 +20,7 @@
   aspect-ratio: 1;
   object-fit: contain;
 }
+
+:global([data-theme="dark"]) .splash {
+  background: #121212;
+}

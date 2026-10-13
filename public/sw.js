@@ -1,21 +1,21 @@
 self.addEventListener("push", (event) => {
   const data = event.data ? event.data.json() : { unread: 1, title: "Little Temptation", body: "New message" };
   const unread = Number(data.unread) || 0;
-  const morning = data.kind === "morning";
+  const quiet = data.kind === "morning" || data.kind === "away";
   event.waitUntil((async () => {
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-      if (!morning) windows.forEach((client) => client.postMessage({ type: "message-note" }));
+      if (!quiet) windows.forEach((client) => client.postMessage({ type: "message-note" }));
       await Promise.all([
         self.registration.showNotification(data.title || "Little Temptation", {
           body: data.body || "New message",
           icon: data.icon || "/icon.png",
           badge: "/icon.png",
-          tag: morning ? "lt-morning" : "lt-message",
+          tag: quiet ? `lt-${data.kind}` : "lt-message",
           renotify: true,
-          silent: morning ? false : windows.length > 0,
+          silent: quiet ? false : windows.length > 0,
           data: { url: "/" },
         }),
-        !morning && unread > 0 && navigator.setAppBadge ? navigator.setAppBadge(unread) : Promise.resolve(),
+        !quiet && unread > 0 && navigator.setAppBadge ? navigator.setAppBadge(unread) : Promise.resolve(),
       ]);
     })());
 });

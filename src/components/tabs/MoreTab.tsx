@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import styles from "./MoreTab.module.css";
 import Swal from "sweetalert2";
-import { api, mediaUrl, uploadFile } from "@/lib/api";
+import { api, mediaUrl, setToken, uploadFile } from "@/lib/api";
 import { useSession } from "@/context/SessionContext";
 import { useTheme } from "@/context/ThemeContext";
 import { applyBubble, BUBBLES } from "@/lib/bubbles";
@@ -146,6 +146,9 @@ export default function MoreTab() {
   const [favourites, setFavourites] = useState<{ id: string; title: string; date: string }[]>([]);
   const [bucketItems, setBucketItems] = useState<{ id: string; title: string; completed: boolean }[]>([]);
   const [pin, setPin] = useState("");
+  const [passwordDraft, setPasswordDraft] = useState("");
+  const [bucketDraft, setBucketDraft] = useState("");
+  const [memoryDraft, setMemoryDraft] = useState("");
   const [anniversary, setAnniversary] = useState("");
   const fallbackAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "Us")}&background=FBBF24&color=1a1a1a&size=200&bold=true`;
   const [avatarSrc, setAvatarSrc] = useState(fallbackAvatar);
@@ -292,9 +295,16 @@ export default function MoreTab() {
               <input type="text" value={editUsername} onChange={e => setEditUsername(e.target.value)} />
             </div>
             <div className={styles.editField}>
-              <label>Password</label>
-              <input type="password" defaultValue="1907" />
+              <label>New password</label>
+              <input type="password" value={passwordDraft} placeholder="At least 4 characters" onChange={(e) => setPasswordDraft(e.target.value)} />
             </div>
+            <button className={styles.editProfileBtn} onClick={async () => {
+              if (passwordDraft.trim().length < 4) return;
+              const saved = await api<{ token?: string }>("/api/auth/set-password", { method: "POST", body: JSON.stringify({ password: passwordDraft.trim() }) });
+              if (saved.token) setToken(saved.token);
+              setPasswordDraft("");
+              await refresh();
+            }}>Save password</button>
           </div>
         </div>
       </div>
@@ -320,18 +330,60 @@ export default function MoreTab() {
         </div>
         <div className={styles.editContent}>
           {panel === "favourites" && (
-            favourites.length === 0
-              ? <p className={styles.footer}>No saved memories yet. Heart a journal entry to keep it here.</p>
-              : favourites.map((entry) => (
-                <div key={entry.id} className={styles.editField}><label>{entry.date}</label><p>{entry.title}</p></div>
-              ))
+            <div className={styles.editForm}>
+              <div className={styles.editField}>
+                <label>Save a memory</label>
+                <input value={memoryDraft} placeholder="A moment you want to keep" onChange={(e) => setMemoryDraft(e.target.value)} />
+              </div>
+              <button className={styles.editProfileBtn} onClick={async () => {
+                const title = memoryDraft.trim();
+                if (!title) return;
+                const saved = await api<{ id: string; title: string; date: string }>("/api/journal", {
+                  method: "POST",
+                  body: JSON.stringify({ title, text: "", favorite: true }),
+                });
+                setFavourites((prev) => [{ id: String(saved.id), title: saved.title, date: saved.date }, ...prev]);
+                setMemoryDraft("");
+              }}>Add memory</button>
+              {favourites.length === 0
+                ? <p className={styles.footer}>No saved memories yet. Add one here, or heart a journal entry.</p>
+                : favourites.map((entry) => (
+                  <div key={entry.id} className={styles.editField}><label>{entry.date}</label><p>{entry.title}</p></div>
+                ))}
+            </div>
           )}
           {panel === "bucket" && (
-            bucketItems.length === 0
-              ? <p className={styles.footer}>Your bucket list is empty.</p>
-              : bucketItems.map((item) => (
-                <div key={item.id} className={styles.editField}><p>{item.completed ? "Done" : "Open"} · {item.title}</p></div>
-              ))
+            <div className={styles.editForm}>
+              <div className={styles.editField}>
+                <label>Add to the bucket list</label>
+                <input value={bucketDraft} placeholder="Something you want to do together" onChange={(e) => setBucketDraft(e.target.value)} />
+              </div>
+              <button className={styles.editProfileBtn} onClick={async () => {
+                const title = bucketDraft.trim();
+                if (!title) return;
+                const item = await api<{ id: string; title: string; completed: boolean }>("/api/bucket", {
+                  method: "POST",
+                  body: JSON.stringify({ title }),
+                });
+                setBucketItems((prev) => [{ ...item, id: String(item.id) }, ...prev]);
+                setBucketDraft("");
+                const next = await api<typeof stats>("/api/me/stats");
+                setStats(next);
+              }}>Add</button>
+              {bucketItems.length === 0
+                ? <p className={styles.footer}>Your bucket list is empty.</p>
+                : bucketItems.map((item) => (
+                  <button key={item.id} className={styles.menuRow} onClick={async () => {
+                    const saved = await api<{ id: string; title: string; completed: boolean }>(`/api/bucket/${item.id}`, {
+                      method: "PATCH",
+                      body: JSON.stringify({ completed: !item.completed }),
+                    });
+                    setBucketItems((prev) => prev.map((row) => row.id === String(saved.id) ? { ...saved, id: String(saved.id) } : row));
+                  }}>
+                    <span className={styles.menuLabel}>{item.completed ? "Done" : "Open"} · {item.title}</span>
+                  </button>
+                ))}
+            </div>
           )}
           {panel === "notifications" && (
             <div className={styles.editForm}>
@@ -446,7 +498,12 @@ export default function MoreTab() {
         {/* Profile hero card */}
         <div className={styles.heroCard}>
           <div className={styles.heroAvatarWrap}>
-            <img src={avatarSrc} alt="avatar" className={styles.heroAvatar} />
+            <img
+              src={avatarSrc}
+              alt="avatar"
+              className={styles.heroAvatar}
+              onError={() => setAvatarSrc(fallbackAvatar)}
+            />
             <button className={styles.cameraBtn} onClick={() => fileRef.current?.click()}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />

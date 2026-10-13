@@ -2,6 +2,7 @@ const express = require('express');
 const Story = require('../models/Story');
 const { requireAuth, requireCouple } = require('../middleware/auth');
 const { getIo } = require('../socket');
+const { publicMedia } = require('../lib/present');
 
 const router = express.Router();
 router.use(requireAuth, requireCouple);
@@ -11,7 +12,7 @@ function present(story, viewerId) {
   return {
     id: story._id,
     authorId: story.authorId,
-    mediaUrl: story.mediaUrl,
+    mediaUrl: publicMedia(story.mediaUrl),
     mediaType: story.mediaType,
     expiresAt: story.expiresAt,
     seen: story.seenBy.some((id) => String(id) === me),
@@ -47,7 +48,7 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const mediaUrl = String(req.body.mediaUrl || '').slice(0, 500);
+    const mediaUrl = publicMedia(req.body.mediaUrl).slice(0, 500);
     if (!mediaUrl) return res.status(400).json({ error: 'A photo or video is required' });
     const story = await Story.create({
       coupleId: req.couple._id,

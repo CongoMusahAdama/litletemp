@@ -37,7 +37,24 @@ const TURNS = [
   { prompt: "Tomorrow", a: "Promise one small thing you will do for them tomorrow." },
 ];
 
+const GameState = require('../models/GameState');
+
 const sessions = new Map();
+
+async function persist(coupleId, state) {
+  const key = String(coupleId);
+  if (!state) {
+    sessions.delete(key);
+    await GameState.deleteOne({ coupleId: key });
+    return;
+  }
+  sessions.set(key, state);
+  await GameState.findOneAndUpdate(
+    { coupleId: key },
+    { state },
+    { upsert: true }
+  );
+}
 
 function deck(kind) {
   if (kind === "know") return KNOW;
@@ -50,7 +67,7 @@ function touchPlayer(state, userId) {
   if (!state.players.includes(id)) state.players.push(id);
 }
 
-function startGame(coupleId, kind, userId) {
+async function startGame(coupleId, kind, userId) {
   const safeKind = kind === "know" || kind === "turn" ? kind : "same";
   const state = {
     kind: safeKind,
@@ -64,16 +81,21 @@ function startGame(coupleId, kind, userId) {
     turnId: String(userId),
     finished: false,
   };
-  sessions.set(String(coupleId), state);
+  await persist(coupleId, state);
   return state;
 }
 
-function currentGame(coupleId) {
-  return sessions.get(String(coupleId)) || null;
+async function currentGame(coupleId) {
+  const key = String(coupleId);
+  if (sessions.has(key)) return sessions.get(key);
+  const saved = await GameState.findOne({ coupleId: key });
+  if (!saved?.state) return null;
+  sessions.set(key, saved.state);
+  return saved.state;
 }
 
-function clearGame(coupleId) {
-  sessions.delete(String(coupleId));
+async function clearGame(coupleId) {
+  await persist(coupleId, null);
 }
 
 function revealIfReady(state) {
@@ -95,8 +117,8 @@ function revealIfReady(state) {
   }
 }
 
-function moveGame(coupleId, userId, move) {
-  const state = currentGame(coupleId);
+async function moveGame(coupleId, userId, move) {
+  const state = await currentGame(coupleId);
   if (!state || state.finished) return state;
   touchPlayer(state, userId);
   const id = String(userId);
@@ -126,6 +148,7 @@ function moveGame(coupleId, userId, move) {
       if (state.round >= total) state.finished = true;
     }
   }
+  await persist(coupleId, state);
   return state;
 }
 

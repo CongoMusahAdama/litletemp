@@ -10,8 +10,10 @@ function getSecret() {
   return secret;
 }
 
-function signToken(userId) {
-  return jwt.sign({ userId: String(userId) }, getSecret(), { expiresIn: '30d' });
+function signToken(userOrId) {
+  const userId = userOrId && userOrId._id ? userOrId._id : userOrId;
+  const version = userOrId && userOrId._id ? (userOrId.tokenVersion || 0) : 0;
+  return jwt.sign({ userId: String(userId), v: version }, getSecret(), { expiresIn: '30d' });
 }
 
 async function requireAuth(req, res, next) {
@@ -24,6 +26,9 @@ async function requireAuth(req, res, next) {
     const user = await User.findById(payload.userId);
     if (!user) return res.status(401).json({ error: 'Account not found' });
 
+    if ((payload.v || 0) !== (user.tokenVersion || 0)) {
+      return res.status(401).json({ error: 'Session expired. Sign in again.' });
+    }
     req.user = user;
     if (user.coupleId) {
       req.couple = await Couple.findById(user.coupleId);

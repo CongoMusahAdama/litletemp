@@ -35,6 +35,7 @@ function initSocket(server) {
     const room = `couple:${user.coupleId}`;
     socket.join(room);
     online.set(String(user._id), socket.id);
+    User.updateOne({ _id: user._id }, { $set: { lastSeenAt: new Date() } }).catch(() => undefined);
     socket.to(room).emit('presence', { userId: user._id, online: true });
 
     socket.on('message:send', async (body, ack) => {
@@ -54,36 +55,39 @@ function initSocket(server) {
 
     const pushGame = async () => {
       const sockets = await io.in(room).fetchSockets();
-      const state = currentGame(user.coupleId);
+      const state = await currentGame(user.coupleId);
       for (const peer of sockets) {
         peer.emit('game:state', state ? viewGame(state, peer.user._id) : null);
       }
     };
 
-    socket.on('game:sync', () => {
-      const state = currentGame(user.coupleId);
+    socket.on('game:sync', async () => {
+      const state = await currentGame(user.coupleId);
       if (!state) {
         socket.emit('game:state', null);
         return;
       }
       touchPlayer(state, user._id);
+      await moveGame(user.coupleId, user._id, {});
       pushGame().catch(() => undefined);
     });
 
     socket.on('game:start', (kind) => {
-      startGame(user.coupleId, kind, user._id);
-      pushGame().catch(() => undefined);
+      startGame(user.coupleId, kind, user._id)
+        .then(() => pushGame())
+        .catch(() => undefined);
     });
 
     socket.on('game:move', (move) => {
-      if (!currentGame(user.coupleId)) return;
-      moveGame(user.coupleId, user._id, move || {});
-      pushGame().catch(() => undefined);
+      moveGame(user.coupleId, user._id, move || {})
+        .then(() => pushGame())
+        .catch(() => undefined);
     });
 
     socket.on('game:leave', () => {
-      clearGame(user.coupleId);
-      pushGame().catch(() => undefined);
+      clearGame(user.coupleId)
+        .then(() => pushGame())
+        .catch(() => undefined);
     });
 
     socket.on('call:signal', (payload) => {

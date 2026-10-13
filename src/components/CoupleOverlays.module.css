@@ -1,0 +1,181 @@
+.gate {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 14px;
+  overflow-y: auto;
+  padding: calc(28px + env(safe-area-inset-top)) 22px calc(28px + env(safe-area-inset-bottom));
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.kicker {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brand-dark);
+}
+
+.title {
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+.lead {
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.lead strong {
+  color: var(--text-primary);
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--bg-card);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--border);
+}
+
+.row span {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.row strong {
+  font-size: 28px;
+  letter-spacing: 1px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.actions button,
+.primary,
+.ghost,
+.moodCard form button {
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 16px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.actions button,
+.primary,
+.moodCard form button {
+  background: var(--brand);
+  color: #1a1a1a;
+}
+
+.primary {
+  margin-top: 6px;
+}
+
+.primary:disabled,
+.moodCard form button:disabled {
+  opacity: 0.45;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.field input,
+.moodCard input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 16px;
+  padding: 14px 16px;
+}
+
+.wait,
+.error {
+  font-size: 14px;
+}
+
+.error {
+  color: #b45309;
+}
+
+.moodScrim {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.moodCard {
+  width: min(100%, 380px);
+  border-radius: 24px;
+  padding: 22px 18px 16px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+  text-align: center;
+}
+
+.face {
+  font-size: 52px;
+  line-height: 1;
+}
+
+.moodCard h2 {
+  margin-top: 8px;
+  font-size: 22px;
+  letter-spacing: -0.4px;
+}
+
+.moodCard p {
+  margin: 8px 0 14px;
+  color: var(--text-secondary);
+}
+
+.moodCard form {
+  display: flex;
+  gap: 8px;
+}
+
+.moodCard input {
+  text-align: left;
+}
+
+.ghost {
+  margin-top: 10px;
+  background: transparent;
+  color: var(--text-secondary);
+}

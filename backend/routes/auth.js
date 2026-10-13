@@ -7,6 +7,7 @@ const { signToken, requireAuth } = require('../middleware/auth');
 const { makeInviteCode } = require('../lib/couple');
 const { presentCouple } = require('../lib/present');
 const { getIo } = require('../socket');
+const { rateLimit } = require('../lib/limit');
 
 const router = express.Router();
 
@@ -39,7 +40,7 @@ async function findUsername(username) {
 
 function welcome(res, user, couple) {
   return res.status(200).json({
-    token: signToken(user._id),
+    token: signToken(user),
     returning: true,
     user: user.toPublic(),
     couple: presentCouple(couple, user),
@@ -76,164 +77,12 @@ router.get('/username', async (req, res, next) => {
   }
 });
 
-router.post('/start', async (req, res, next) => {
-  try {
-    const myName = cleanName(req.body.myName);
-    const partnerName = cleanName(req.body.partnerName);
-    const myUsername = cleanUsername(req.body.myUsername);
-    const partnerUsername = cleanUsername(req.body.partnerUsername);
-    if (!myName || !partnerName) {
-      return res.status(400).json({ error: 'Both names are required' });
-    }
-    if (!usernameOk(myUsername) || !usernameOk(partnerUsername)) {
-      return res.status(400).json({ error: 'Usernames need 3 to 20 letters or numbers' });
-    }
-    if (myUsername === partnerUsername) {
-      return res.status(409).json({ error: 'Choose a different username from your partner' });
-    }
-
-    const me = await findUsername(myUsername);
-    const them = await findUsername(partnerUsername);
-
-    if (me && them && me.coupleId && String(me.coupleId) === String(them.coupleId)) {
-      const couple = await Couple.findById(me.coupleId);
-      if (couple) return welcome(res, me, couple);
-    }
-
-    if (me && me.coupleId && !them) {
-      const couple = await Couple.findById(me.coupleId);
-      const reserved = couple?.expectedPartnerUsername || '';
-      const otherId = couple ? otherPartnerId(couple, me._id) : '';
-      if (couple && !otherId && (!reserved || reserved === partnerUsername)) {
-        couple.expectedPartnerName = partnerName;
-        couple.expectedPartnerUsername = partnerUsername;
-        await couple.save();
-        return welcome(res, me, couple);
-      }
-    }
-
-    const previous = await existingBond(myName, partnerName);
-    if (previous) {
-      if (me && String(me._id) !== String(previous.user._id)) {
-        return res.status(409).json({ error: 'That username is taken. Choose a different one.' });
-      }
-      if (them && (!previous.other || String(them._id) !== String(previous.other._id))) {
-        return res.status(409).json({ error: 'That partner username is taken. Choose a different one.' });
-      }
-      if (previous.user.username && previous.user.username !== myUsername) {
-        return res.status(409).json({ error: 'That username is taken. Choose a different one.' });
-      }
-      if (previous.other?.username && previous.other.username !== partnerUsername) {
-        return res.status(409).json({ error: 'That partner username is taken. Choose a different one.' });
-      }
-      previous.user.name = myName;
-      previous.user.username = myUsername;
-      await previous.user.save();
-      if (previous.other) {
-        previous.other.name = partnerName;
-        previous.other.username = partnerUsername;
-        await previous.other.save();
-      }
-      previous.couple.expectedPartnerName = partnerName;
-      previous.couple.expectedPartnerUsername = partnerUsername;
-      await previous.couple.save();
-      return welcome(res, previous.user, previous.couple);
-    }
-
-    if (me) return res.status(409).json({ error: 'That username is taken. Choose a different one.' });
-    if (them) return res.status(409).json({ error: 'That partner username is taken. Choose a different one.' });
-
-    const user = await User.create({ name: myName, username: myUsername });
-    const inviteCode = await makeInviteCode();
-    const couple = await Couple.create({
-      partner1: user._id,
-      expectedPartnerName: partnerName,
-      expectedPartnerUsername: partnerUsername,
-      inviteCode,
-      inviteExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    });
-    user.coupleId = couple._id;
-    await user.save();
-
-    res.status(201).json({
-      token: signToken(user._id),
-      user: user.toPublic(),
-      couple: presentCouple(couple, user),
-    });
-  } catch (error) {
-    if (error.code === 11000) {
-      return res.status(409).json({ error: 'That username is taken. Choose a different one.' });
-    }
-    next(error);
-  }
+router.post('/start', (_req, res) => {
+  res.status(410).json({ error: 'Pairing now uses an ID and password. Choose Show my ID or Connect.' });
 });
 
-router.post('/join', async (req, res, next) => {
-  try {
-    const myName = cleanName(req.body.myName);
-    const myUsername = cleanUsername(req.body.myUsername);
-    const code = String(req.body.pairingCode || '').trim().toUpperCase();
-    if (!myName || !usernameOk(myUsername) || !/^BOND-\d{4}$/.test(code)) {
-      return res.status(400).json({ error: 'Enter your name, a username, and a pairing code' });
-    }
-
-    const couple = await Couple.findOne({ inviteCode: code });
-    if (!couple) return res.status(404).json({ error: 'That pairing code was not found' });
-
-    const people = await User.find({
-      _id: { $in: [couple.partner1, couple.partner2].filter(Boolean) },
-    });
-    const byUsername = people.find((person) => person.username === myUsername);
-    if (byUsername) return welcome(res, byUsername, couple);
-
-    const unnamed = people.filter((person) => sameName(person.name, myName) && !person.username);
-    if (unnamed.length === 1) {
-      const clash = await findUsername(myUsername);
-      if (clash) return res.status(409).json({ error: 'That username is taken. Choose a different one.' });
-      unnamed[0].username = myUsername;
-      await unnamed[0].save();
-      return welcome(res, unnamed[0], couple);
-    }
-
-    const outsider = await findUsername(myUsername);
-    if (outsider) return res.status(409).json({ error: 'That username is taken. Choose a different one.' });
-    if (couple.partner2) return res.status(409).json({ error: 'This bond is already paired' });
-    if (couple.expectedPartnerUsername && couple.expectedPartnerUsername !== myUsername) {
-      return res.status(409).json({ error: 'This code is saved for a different username. Choose the username you were given.' });
-    }
-    if (couple.inviteExpiresAt && couple.inviteExpiresAt < new Date()) {
-      return res.status(410).json({ error: 'That pairing code has expired' });
-    }
-
-    const user = await User.create({ name: myName, username: myUsername, coupleId: couple._id });
-    couple.partner2 = user._id;
-    couple.status = 'active';
-    couple.expectedPartnerUsername = myUsername;
-    await couple.save();
-
-    const creator = await User.findById(couple.partner1);
-    const io = getIo();
-    if (io) {
-      io.to(`couple:${couple._id}`).emit('partner:joined', {
-        partner: user.toPublic(),
-        couple: presentCouple(couple, creator || user),
-      });
-    }
-
-    res.status(200).json({
-      token: signToken(user._id),
-      user: user.toPublic(),
-      couple: {
-        ...presentCouple(couple, user),
-        partner: creator ? creator.toPublic() : null,
-      },
-    });
-  } catch (error) {
-    if (error.code === 11000) {
-      return res.status(409).json({ error: 'That username is taken. Choose a different one.' });
-    }
-    next(error);
-  }
+router.post('/join', (_req, res) => {
+  res.status(410).json({ error: 'Pairing now uses an ID and password. Choose Show my ID or Connect.' });
 });
 
 router.get('/me', requireAuth, async (req, res, next) => {
@@ -246,6 +95,7 @@ router.get('/me', requireAuth, async (req, res, next) => {
         .find((id) => id && id !== selfId);
       if (partnerId) partner = await User.findById(partnerId);
     }
+    await User.updateOne({ _id: req.user._id }, { $set: { lastSeenAt: new Date() } });
     res.json({
       user: req.user.toPublic(),
       couple: req.couple ? presentCouple(req.couple, req.user) : null,
@@ -256,22 +106,110 @@ router.get('/me', requireAuth, async (req, res, next) => {
   }
 });
 
-// Login with username + password (after password has been set)
-router.post('/login', async (req, res, next) => {
+async function makeAccessId() {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const accessId = String(Math.floor(100000000 + Math.random() * 900000000));
+    const exists = await User.exists({ accessId });
+    if (!exists) return accessId;
+  }
+  throw new Error('Could not create an ID');
+}
+
+function makeGatePassword() {
+  return String(Math.floor(10000 + Math.random() * 90000));
+}
+
+router.post('/host', rateLimit({ windowMs: 60 * 60 * 1000, max: 8 }), async (req, res, next) => {
   try {
+    const myName = cleanName(req.body.name || req.body.myName);
+    if (!myName) return res.status(400).json({ error: 'Enter your name' });
+    const accessId = await makeAccessId();
+    const gatePassword = makeGatePassword();
+    const user = await User.create({ name: myName, accessId });
+    const couple = await Couple.create({
+      partner1: user._id,
+      inviteCode: await makeInviteCode(),
+      inviteExpiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      gatePassword,
+      status: 'pending',
+    });
+    user.coupleId = couple._id;
+    await user.save();
+    res.status(201).json({
+      token: signToken(user),
+      user: user.toPublic(),
+      couple: presentCouple(couple, user),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/connect', rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }), async (req, res, next) => {
+  try {
+    const myName = cleanName(req.body.name || req.body.myName);
+    const accessId = String(req.body.accessId || req.body.partnerId || '').replace(/\D/g, '');
+    const password = String(req.body.password || '').replace(/\D/g, '');
+    if (!myName || !/^\d{9}$/.test(accessId) || !/^\d{4,6}$/.test(password)) {
+      return res.status(400).json({ error: 'Enter your name, your partner’s ID, and the password they showed you' });
+    }
+    const host = await User.findOne({ accessId });
+    if (!host || !host.coupleId) return res.status(404).json({ error: 'That ID was not found' });
+    const couple = await Couple.findById(host.coupleId);
+    if (!couple) return res.status(404).json({ error: 'That ID was not found' });
+    if (couple.partner2 || couple.status === 'active') {
+      return res.status(409).json({ error: 'This ID is already paired. Sign in with your own ID and password.' });
+    }
+    if (couple.gatePassword !== password) {
+      return res.status(401).json({ error: 'That password does not match. Ask your partner to read it again.' });
+    }
+    const partner = await User.create({
+      name: myName,
+      accessId: await makeAccessId(),
+      coupleId: couple._id,
+    });
+    const updated = await Couple.findOneAndUpdate(
+      { _id: couple._id, status: 'pending', partner2: null, gatePassword: password },
+      { $set: { partner2: partner._id, status: 'active', expectedPartnerName: myName, gatePassword: '' } },
+      { returnDocument: 'after' }
+    );
+    if (!updated) {
+      await User.deleteOne({ _id: partner._id });
+      return res.status(409).json({ error: 'This ID is already paired. Sign in with your own ID and password.' });
+    }
+    const io = getIo();
+    if (io) {
+      io.to(`couple:${couple._id}`).emit('partner:joined', {
+        partner: partner.toPublic(),
+        couple: presentCouple(updated, host),
+      });
+    }
+    res.status(200).json({
+      token: signToken(partner),
+      user: partner.toPublic(),
+      couple: presentCouple(updated, partner),
+      partner: host.toPublic(),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }), async (req, res, next) => {
+  try {
+    const accessId = String(req.body.accessId || req.body.username || '').replace(/\D/g, '');
     const username = cleanUsername(req.body.username);
     const password = String(req.body.password || '').trim();
-    if (!usernameOk(username) || !password) {
-      return res.status(400).json({ error: 'Enter your username and password' });
-    }
-    const user = await findUsername(username);
-    if (!user) return res.status(401).json({ error: 'Username or password is incorrect' });
+    if (!password) return res.status(400).json({ error: 'Enter your ID and password' });
+    let user = null;
+    if (/^\d{9}$/.test(accessId)) user = await User.findOne({ accessId });
+    if (!user && usernameOk(username)) user = await findUsername(username);
+    if (!user) return res.status(401).json({ error: 'ID or password is incorrect' });
     if (!user.passwordHash) {
-      // Legacy user — no password yet, fall back to bond-code flow
-      return res.status(403).json({ error: 'no_password', message: 'Please use the pairing code to sign in and set a password.' });
+      return res.status(403).json({ error: 'Choose a password after you pair. Open the app with the ID you were given.' });
     }
     const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) return res.status(401).json({ error: 'Username or password is incorrect' });
+    if (!ok) return res.status(401).json({ error: 'ID or password is incorrect' });
     const couple = user.coupleId ? await Couple.findById(user.coupleId) : null;
     if (!couple) return res.status(403).json({ error: 'Account is not paired yet' });
     return welcome(res, user, couple);
@@ -289,8 +227,9 @@ router.post('/set-password', requireAuth, async (req, res, next) => {
     }
     const hash = await bcrypt.hash(password, 10);
     req.user.passwordHash = hash;
+    req.user.tokenVersion = (req.user.tokenVersion || 0) + 1;
     await req.user.save();
-    res.json({ ok: true });
+    res.json({ ok: true, token: signToken(req.user), user: req.user.toPublic() });
   } catch (error) {
     next(error);
   }

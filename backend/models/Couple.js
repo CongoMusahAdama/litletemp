@@ -6,6 +6,7 @@ const coupleSchema = new mongoose.Schema({
   expectedPartnerName: { type: String, trim: true, maxlength: 40 },
   expectedPartnerUsername: { type: String, trim: true, lowercase: true, maxlength: 20 },
   inviteCode: { type: String, required: true, unique: true, index: true },
+  gatePassword: { type: String, default: '' },
   inviteExpiresAt: { type: Date, required: true },
   status: { type: String, enum: ['pending', 'active'], default: 'pending' },
   anniversary: { type: Date },

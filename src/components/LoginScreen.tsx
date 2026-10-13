@@ -42,21 +42,21 @@ export default function LoginScreen({ onLogin }: Props) {
     if (!loginUsername.trim() || !loginPassword.trim()) return;
     setLoading(true);
     try {
-      const data = await api<{ token: string; user: { hasPassword: boolean }; returning: boolean }>("/api/auth/login", {
+      const raw = loginUsername.trim();
+      const data = await api<{ token: string }>("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify({ username: loginUsername.trim().toLowerCase(), password: loginPassword }),
+        body: JSON.stringify({
+          accessId: raw.replace(/\D/g, ""),
+          username: raw.toLowerCase(),
+          password: loginPassword,
+        }),
       });
       setToken(data.token);
       await refresh();
       onLogin();
     } catch (error) {
       const msg = error instanceof Error ? error.message : "";
-      if (msg === "no_password") {
-        // Legacy user — redirect to bond-code flow
-        setStep("intro");
-      } else {
-        Swal.fire({ title: "Sign in failed", text: msg || "Check your username and password", icon: "error", confirmButtonColor: "#1a1a1a" });
-      }
+      Swal.fire({ title: "Sign in failed", text: msg || "Check your ID and password", icon: "error", confirmButtonColor: "#1a1a1a" });
     } finally {
       setLoading(false);
     }
@@ -66,10 +66,11 @@ export default function LoginScreen({ onLogin }: Props) {
     if (newPassword.length < 4 || newPassword !== newPasswordConfirm) return;
     setLoading(true);
     try {
-      await api("/api/auth/set-password", {
+      const saved = await api<{ token?: string }>("/api/auth/set-password", {
         method: "POST",
         body: JSON.stringify({ password: newPassword }),
       });
+      if (saved.token) setToken(saved.token);
       await refresh();
       onLogin();
     } catch (error) {
@@ -79,75 +80,38 @@ export default function LoginScreen({ onLogin }: Props) {
     }
   };
 
-  const generateCode = async () => {
-    if (!myName.trim() || !partnerName.trim() || !usernameReady(myUsername) || !usernameReady(partnerUsername)) return;
+  const openHost = async () => {
+    if (!myName.trim()) return;
     setLoading(true);
     try {
-      const data = await api<{ token: string; returning?: boolean; user?: { hasPassword: boolean }; couple: { inviteCode: string } }>("/api/auth/start", {
+      const data = await api<{ token: string }>("/api/auth/host", {
         method: "POST",
-        body: JSON.stringify({ myName, myUsername, partnerName, partnerUsername }),
+        body: JSON.stringify({ name: myName.trim() }),
       });
       setToken(data.token);
-      if (data.returning) {
-        await refresh();
-        // Prompt for password if not set
-        const meData = await api<{ user: { hasPassword: boolean } }>("/api/auth/me").catch(() => null);
-        if (meData && !meData.user.hasPassword) {
-          setStep("set_password");
-          return;
-        }
-        await Swal.fire({
-          title: "Welcome back",
-          text: "Your old messages are still here.",
-          icon: "success",
-          confirmButtonColor: "#1a1a1a",
-          background: "#ffffff",
-          color: "#1a1a1a",
-          confirmButtonText: "Enter our space",
-        });
-        onLogin();
-        return;
-      }
-      setGeneratedCode(data.couple.inviteCode);
-      setWaiting(true);
-      setStep("share_code");
+      await refresh();
+      onLogin();
     } catch (error) {
-      Swal.fire({ title: "Could not create a code", text: error instanceof Error ? error.message : "Try again", icon: "error" });
+      Swal.fire({ title: "Could not open a space", text: error instanceof Error ? error.message : "Try again", icon: "error" });
     } finally {
       setLoading(false);
     }
   };
 
-  const verifyJoinCode = async () => {
-    if (!myName.trim() || !usernameReady(myUsername) || pairingCode.length < 4) return;
+  const connectPartner = async () => {
+    const accessId = pairingCode.replace(/\D/g, "");
+    if (!myName.trim() || accessId.length !== 9 || loginPassword.trim().length < 4) return;
     setLoading(true);
     try {
-      const data = await api<{ token: string; returning?: boolean }>("/api/auth/join", {
+      const data = await api<{ token: string }>("/api/auth/connect", {
         method: "POST",
-        body: JSON.stringify({ myName, myUsername, pairingCode }),
+        body: JSON.stringify({ name: myName.trim(), accessId, password: loginPassword.trim() }),
       });
       setToken(data.token);
       await refresh();
-      // After pairing, always prompt to set a password if not yet set
-      const meData = await api<{ user: { hasPassword: boolean } }>("/api/auth/me").catch(() => null);
-      if (meData && !meData.user.hasPassword) {
-        setStep("set_password");
-        return;
-      }
-      await Swal.fire({
-        title: data.returning ? "Welcome back" : "Bond Connected!",
-        text: data.returning
-          ? "You are signed in again. Your messages are still here."
-          : "You are paired. Messages, journal, and moods now stay in sync.",
-        icon: "success",
-        confirmButtonColor: "#1a1a1a",
-        background: "#ffffff",
-        color: "#1a1a1a",
-        confirmButtonText: "Enter our space"
-      });
       onLogin();
     } catch (error) {
-      Swal.fire({ title: "Could not join", text: error instanceof Error ? error.message : "Try again", icon: "error" });
+      Swal.fire({ title: "Could not connect", text: error instanceof Error ? error.message : "Try again", icon: "error" });
     } finally {
       setLoading(false);
     }
@@ -222,20 +186,20 @@ export default function LoginScreen({ onLogin }: Props) {
         {step === "login" && (
           <div className={styles.namesScreen}>
             <div className={styles.headerPick} style={{ paddingTop: 40 }}>
-              <h1 className={styles.titlePick} style={{ fontSize: '30px' }}>Welcome back 💕</h1>
-              <p className={styles.subtitlePick}>Sign in with your username and password.</p>
+              <h1 className={styles.titlePick} style={{ fontSize: '30px' }}>Welcome back</h1>
+              <p className={styles.subtitlePick}>Sign in with your ID and the password you chose after pairing.</p>
             </div>
             <div className={styles.namesForm}>
               <div className={styles.nameField}>
-                <label className={styles.nameLabel}>Username</label>
+                <label className={styles.nameLabel}>Your ID</label>
                 <input
                   type="text"
                   id="input-login-username"
                   className={styles.nameInput}
-                  placeholder="your_username"
+                  placeholder="202 096 585"
+                  inputMode="numeric"
                   value={loginUsername}
-                  onChange={e => setLoginUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
-                  autoCapitalize="none"
+                  onChange={e => setLoginUsername(e.target.value)}
                   autoFocus
                 />
               </div>
@@ -275,7 +239,7 @@ export default function LoginScreen({ onLogin }: Props) {
           <div className={styles.namesScreen}>
             <div className={styles.headerPick} style={{ paddingTop: 40 }}>
               <h1 className={styles.titlePick}>Create your password</h1>
-              <p className={styles.subtitlePick}>You only need to do this once. Next time you sign in with your username and this password — no bond code needed.</p>
+              <p className={styles.subtitlePick}>This replaces the password your partner used to connect. Next time you sign in with your ID and this password.</p>
             </div>
             <div className={styles.namesForm}>
               <div className={styles.nameField}>
@@ -385,19 +349,15 @@ export default function LoginScreen({ onLogin }: Props) {
             <ol className={styles.guideSteps}>
               <li>
                 <span>1</span>
-                <p><strong>One of you starts.</strong> Pick a username. Usernames are unique, so the same two people keep the same chat.</p>
+                <p><strong>One of you opens a space.</strong> An ID and a short password appear, like a remote-control code.</p>
               </li>
               <li>
                 <span>2</span>
-                <p><strong>A code appears.</strong> Send that code only to your partner.</p>
+                <p><strong>The other person types that ID and password</strong> and taps connect. You only do this once.</p>
               </li>
               <li>
                 <span>3</span>
-                <p><strong>They join with the code</strong> and the username you chose for them.</p>
-              </li>
-              <li>
-                <span>4</span>
-                <p><strong>You are connected.</strong> Next time, the same usernames open the same messages.</p>
+                <p><strong>Each of you then chooses a private password.</strong> After that, sign in with your own ID. The chat stays.</p>
               </li>
             </ol>
             <button type="button" className={styles.guideNext} onClick={() => setStep("action_choice")}>
@@ -432,8 +392,8 @@ export default function LoginScreen({ onLogin }: Props) {
                   </div>
                 </div>
                 <div className={styles.cardInfo}>
-                  <h3>Start a New Bond</h3>
-                  <p>I want to invite my partner</p>
+                  <h3>Show my ID</h3>
+                  <p>Let my partner connect to me</p>
                 </div>
               </button>
 
@@ -452,8 +412,8 @@ export default function LoginScreen({ onLogin }: Props) {
                   </div>
                 </div>
                 <div className={styles.cardInfo}>
-                  <h3>Join my Partner</h3>
-                  <p>I have a pairing code</p>
+                  <h3>Connect to partner</h3>
+                  <p>I have their ID and password</p>
                 </div>
               </button>
 
@@ -471,8 +431,8 @@ export default function LoginScreen({ onLogin }: Props) {
                   </div>
                 </div>
                 <div className={styles.cardInfo}>
-                  <h3>Sign In</h3>
-                  <p>I already have an account</p>
+                  <h3>Sign in</h3>
+                  <p>We already paired</p>
                 </div>
               </button>
             </div>
@@ -486,18 +446,12 @@ export default function LoginScreen({ onLogin }: Props) {
         {step === "start_names" && (
           <div className={styles.namesScreen}>
             <div className={styles.headerPick}>
-              <div className={styles.stepper}>
-                <span className={styles.stepDot} />
-                <span className={styles.stepActive} />
-                <span className={styles.stepDot} />
-                <span className={styles.stepDot} />
-              </div>
-              <h1 className={styles.titlePick}>Who is<br/>pairing up?</h1>
+              <h1 className={styles.titlePick}>What should we call you?</h1>
+              <p className={styles.subtitlePick}>Next you will see an ID and a password to read to your partner. You only pair once.</p>
             </div>
-
             <div className={styles.namesForm}>
               <div className={styles.nameField}>
-                <label className={styles.nameLabel}>Your Name</label>
+                <label className={styles.nameLabel}>Your name</label>
                 <input
                   type="text"
                   className={styles.nameInput}
@@ -507,53 +461,14 @@ export default function LoginScreen({ onLogin }: Props) {
                   autoFocus
                 />
               </div>
-
-              <div className={styles.nameField}>
-                <label className={styles.nameLabel}>Your Username</label>
-                <input
-                  type="text"
-                  className={styles.nameInput}
-                  placeholder="e.g., sarah"
-                  value={myUsername}
-                  onChange={e => setMyUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
-                  autoCapitalize="none"
-                />
-                {taken.mine && <p className={styles.nameHint}>This username is taken. Choose a different one, unless it is already yours.</p>}
-              </div>
-
-              <div className={styles.nameField}>
-                <label className={styles.nameLabel}>Partner's Name</label>
-                <input
-                  type="text"
-                  className={styles.nameInput}
-                  placeholder="e.g., James"
-                  value={partnerName}
-                  onChange={e => setPartnerName(e.target.value)}
-                />
-              </div>
-
-              <div className={styles.nameField}>
-                <label className={styles.nameLabel}>Partner's Username</label>
-                <input
-                  type="text"
-                  className={styles.nameInput}
-                  placeholder="e.g., james"
-                  value={partnerUsername}
-                  onChange={e => setPartnerUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
-                  autoCapitalize="none"
-                />
-                {taken.partner && <p className={styles.nameHint}>This username is taken. Choose a different one, unless it is already theirs.</p>}
-              </div>
             </div>
-
-            <button 
-              className={styles.getStartedBtn} 
-              onClick={generateCode} 
-              disabled={!myName.trim() || !partnerName.trim() || !usernameReady(myUsername) || !usernameReady(partnerUsername) || myUsername.trim().toLowerCase() === partnerUsername.trim().toLowerCase() || loading}
+            <button
+              className={styles.getStartedBtn}
+              onClick={openHost}
+              disabled={!myName.trim() || loading}
             >
-              {loading ? "Generating..." : "Create Invite Code"}
+              {loading ? "Opening..." : "Show my ID"}
             </button>
-
             <button className={styles.backBtn} onClick={handleBack}>
               Back
             </button>
@@ -599,19 +514,12 @@ export default function LoginScreen({ onLogin }: Props) {
         {step === "join_code" && (
           <div className={styles.connectScreen}>
             <div className={styles.headerPick}>
-              <div className={styles.stepper}>
-                <span className={styles.stepDot} />
-                <span className={styles.stepActive} />
-                <span className={styles.stepDot} />
-                <span className={styles.stepDot} />
-              </div>
-              <h1 className={styles.titlePick}>Join your partner</h1>
-              <p className={styles.subtitlePick}>Enter your name, your username, and the code you received.</p>
+              <h1 className={styles.titlePick}>Connect to your partner</h1>
+              <p className={styles.subtitlePick}>Type the ID and password on their screen. You only do this once.</p>
             </div>
-
             <div className={styles.namesForm}>
               <div className={styles.nameField}>
-                <label className={styles.nameLabel}>Your Name</label>
+                <label className={styles.nameLabel}>Your name</label>
                 <input
                   type="text"
                   className={styles.nameInput}
@@ -620,42 +528,36 @@ export default function LoginScreen({ onLogin }: Props) {
                   onChange={e => setMyName(e.target.value)}
                 />
               </div>
-
               <div className={styles.nameField}>
-                <label className={styles.nameLabel}>Your Username</label>
+                <label className={styles.nameLabel}>Partner ID</label>
                 <input
                   type="text"
                   className={styles.nameInput}
-                  placeholder="e.g., james"
-                  value={myUsername}
-                  onChange={e => setMyUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
-                  autoCapitalize="none"
-                />
-                {taken.mine && <p className={styles.nameHint}>This username is taken. Choose a different one, unless it is already yours.</p>}
-              </div>
-
-              <div className={styles.nameField}>
-                <label className={styles.nameLabel}>Pairing Code</label>
-                <input
-                  type="text"
-                  className={styles.nameInput}
-                  placeholder="e.g., BOND-1234"
+                  placeholder="202 096 585"
+                  inputMode="numeric"
                   value={pairingCode}
-                  onChange={e => setPairingCode(e.target.value.toUpperCase())}
-                  style={{ textTransform: "uppercase", letterSpacing: "2px" }}
+                  onChange={e => setPairingCode(e.target.value)}
+                />
+              </div>
+              <div className={styles.nameField}>
+                <label className={styles.nameLabel}>Password</label>
+                <input
+                  type="text"
+                  className={styles.nameInput}
+                  placeholder="The password on their screen"
+                  inputMode="numeric"
+                  value={loginPassword}
+                  onChange={e => setLoginPassword(e.target.value)}
                 />
               </div>
             </div>
-
-            <button 
-              className={styles.connectConfirmBtn} 
-              onClick={verifyJoinCode} 
-              disabled={!myName.trim() || !usernameReady(myUsername) || pairingCode.length < 4 || loading}
-              style={{ width: "calc(100% - 40px)", margin: "0 auto 20px" }}
+            <button
+              className={styles.connectConfirmBtn}
+              onClick={connectPartner}
+              disabled={!myName.trim() || pairingCode.replace(/\D/g, "").length !== 9 || loginPassword.trim().length < 4 || loading}
             >
-              {loading ? <div className={styles.spinner} /> : "Connect"}
+              {loading ? <div className={styles.spinner} /> : "Connect to partner"}
             </button>
-
             <button className={styles.backBtn} onClick={handleBack}>
               Back
             </button>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { io } from "socket.io-client";
 import BottomNav from "./BottomNav";
 import ChatsTab from "./tabs/ChatsTab";
 import JournalTab from "./tabs/JournalTab";
@@ -9,14 +10,18 @@ import MoreTab from "./tabs/MoreTab";
 import ChatView from "./ChatView";
 import styles from "./AppShell.module.css";
 import { useSession } from "@/context/SessionContext";
+import { API_URL, getToken } from "@/lib/api";
 import { applyBubble } from "@/lib/bubbles";
 import { playMessageNote } from "@/lib/note";
 import HomeBadge from "./HomeBadge";
+import { MoodPopup, PairingBoard, PasswordSetup } from "./CoupleOverlays";
 
 export type Tab = "chats" | "journal" | "mood" | "more" | "action";
 
 export default function AppShell() {
-  const { user } = useSession();
+  const { user, couple, refresh } = useSession();
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
   const [activeTab, setActiveTab] = useState<Tab>("chats");
   const [chatOpen, setChatOpen] = useState(true); // open chat immediately
   const [triggerEntry, setTriggerEntry] = useState(0);
@@ -26,6 +31,15 @@ export default function AppShell() {
     const saved = user?.bubbleColor || localStorage.getItem("lt_bubble") || "";
     applyBubble(saved);
   }, [user?.bubbleColor]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const socket = io(API_URL, { auth: { token: getToken() } });
+    const pull = () => { refreshRef.current().catch(() => undefined); };
+    socket.on("partner:updated", pull);
+    socket.on("partner:joined", pull);
+    return () => { socket.disconnect(); };
+  }, [user?.id]);
 
   useEffect(() => {
     const onNote = (event: MessageEvent) => {
@@ -76,6 +90,9 @@ export default function AppShell() {
         <BottomNav active={activeTab} onChange={handleTabChange} />
       )}
       <HomeBadge />
+      {couple?.status === "pending" && couple.gatePassword && <PairingBoard />}
+      {couple?.status === "active" && user && !user.hasPassword && <PasswordSetup />}
+      {couple?.status === "active" && user?.hasPassword && <MoodPopup />}
       {covered && <div className={styles.privacyCover}>Little Temptation</div>}
     </div>
   );

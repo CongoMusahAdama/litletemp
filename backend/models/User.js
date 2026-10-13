@@ -1,8 +1,10 @@
 const mongoose = require('mongoose');
+const { publicMedia } = require('../lib/present');
 
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, maxlength: 40 },
   username: { type: String, trim: true, sparse: true, unique: true, maxlength: 32 },
+  accessId: { type: String, trim: true, sparse: true, unique: true, maxlength: 9 },
   pinHash: { type: String },
   passwordHash: { type: String },
   avatarUrl: { type: String },
@@ -17,6 +19,9 @@ const userSchema = new mongoose.Schema({
     auth: String,
   }],
   lastMorningDate: { type: String, default: '' },
+  lastAwayDate: { type: String, default: '' },
+  lastSeenAt: { type: Date },
+  tokenVersion: { type: Number, default: 0 },
 }, { timestamps: true });
 
 userSchema.methods.toPublic = function toPublic() {
@@ -24,7 +29,8 @@ userSchema.methods.toPublic = function toPublic() {
     id: this._id,
     name: this.name,
     username: this.username || '',
-    avatarUrl: this.avatarUrl || '',
+    accessId: this.accessId || '',
+    avatarUrl: publicMedia(this.avatarUrl),
     coupleId: this.coupleId,
     notifications: this.notifications,
     language: this.language,
