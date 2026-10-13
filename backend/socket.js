@@ -34,6 +34,7 @@ function initSocket(server) {
     const user = socket.user;
     const room = `couple:${user.coupleId}`;
     socket.join(room);
+    socket.join(`user:${user._id}`);
     online.set(String(user._id), socket.id);
     User.updateOne({ _id: user._id }, { $set: { lastSeenAt: new Date() } }).catch(() => undefined);
     socket.to(room).emit('presence', { userId: user._id, online: true });

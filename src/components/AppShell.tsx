@@ -10,7 +10,7 @@ import MoreTab from "./tabs/MoreTab";
 import ChatView from "./ChatView";
 import styles from "./AppShell.module.css";
 import { useSession } from "@/context/SessionContext";
-import { API_URL, getToken } from "@/lib/api";
+import { API_URL, getToken, PublicUser } from "@/lib/api";
 import { applyBubble } from "@/lib/bubbles";
 import { playMessageNote } from "@/lib/note";
 import HomeBadge from "./HomeBadge";
@@ -19,7 +19,7 @@ import { MoodPopup, PairingBoard, PasswordSetup } from "./CoupleOverlays";
 export type Tab = "chats" | "journal" | "mood" | "more" | "action";
 
 export default function AppShell() {
-  const { user, couple, refresh } = useSession();
+  const { user, couple, partner, refresh, markJoined } = useSession();
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
   const [activeTab, setActiveTab] = useState<Tab>("chats");
@@ -36,10 +36,14 @@ export default function AppShell() {
     if (!user?.id) return;
     const socket = io(API_URL, { auth: { token: getToken() } });
     const pull = () => { refreshRef.current().catch(() => undefined); };
+    socket.on("connect", pull);
     socket.on("partner:updated", pull);
-    socket.on("partner:joined", pull);
+    socket.on("partner:joined", (payload: { partner?: PublicUser }) => {
+      if (payload?.partner) markJoined(payload.partner);
+      pull();
+    });
     return () => { socket.disconnect(); };
-  }, [user?.id]);
+  }, [user?.id, markJoined]);
 
   useEffect(() => {
     const onNote = (event: MessageEvent) => {
@@ -90,8 +94,8 @@ export default function AppShell() {
         <BottomNav active={activeTab} onChange={handleTabChange} />
       )}
       <HomeBadge />
-      {couple?.status === "pending" && couple.gatePassword && <PairingBoard />}
-      {couple?.status === "active" && user && !user.hasPassword && <PasswordSetup />}
+      {couple?.status === "pending" && couple.gatePassword && !partner && <PairingBoard />}
+      {(couple?.status === "active" || partner) && user && !user.hasPassword && <PasswordSetup />}
       {couple?.status === "active" && user?.hasPassword && <MoodPopup />}
       {covered && <div className={styles.privacyCover}>Little Temptation</div>}
     </div>

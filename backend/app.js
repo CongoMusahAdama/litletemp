@@ -25,6 +25,10 @@ function createApp() {
     origin: allowedOrigins.includes('*') ? '*' : allowedOrigins,
   }));
   app.use(express.json({ limit: '2mb' }));
+  app.use('/api', (_req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    next();
+  });
 
   app.get('/uploads/:filename', async (req, res) => {
     try {

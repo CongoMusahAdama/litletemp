@@ -42,11 +42,20 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const isForm = options.body instanceof FormData;
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
+    cache: "no-store",
     headers: {
       ...(isForm ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -55,7 +64,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.error || "Request failed");
+    throw new ApiError(response.status, data.error || "Request failed");
   }
   return data as T;
 }

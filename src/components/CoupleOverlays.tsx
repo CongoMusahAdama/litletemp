@@ -26,15 +26,46 @@ export function prettyId(value?: string) {
 export function PairingBoard() {
   const { user, couple, partner, refresh } = useSession();
   const [copied, setCopied] = useState("");
+  const [checking, setChecking] = useState(false);
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      refreshRef.current().catch(() => undefined);
-    }, 2500);
-    return () => clearInterval(timer);
+    let stopped = false;
+    let pending = false;
+    const tick = () => {
+      if (stopped || pending || document.visibilityState === "hidden") return;
+      pending = true;
+      const controller = new AbortController();
+      const kill = window.setTimeout(() => controller.abort(), 8000);
+      refreshRef.current(controller.signal).finally(() => {
+        window.clearTimeout(kill);
+        pending = false;
+      });
+    };
+    const timer = window.setInterval(tick, 2000);
+    const onWake = () => tick();
+    document.addEventListener("visibilitychange", onWake);
+    window.addEventListener("pageshow", onWake);
+    tick();
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onWake);
+      window.removeEventListener("pageshow", onWake);
+    };
   }, []);
+
+  const checkAgain = async () => {
+    setChecking(true);
+    try {
+      await refresh();
+    } catch {
+      // The screen stays until the bond is active.
+    } finally {
+      setChecking(false);
+    }
+  };
 
   const copy = async (label: string, value: string) => {
     try {
@@ -66,6 +97,9 @@ export function PairingBoard() {
         <button type="button" onClick={() => copy("password", couple?.gatePassword || "")}>{copied === "password" ? "Password copied" : "Copy password"}</button>
       </div>
       <p className={styles.wait}>{partner ? `${shownName(partner)} is here` : "Waiting for your partner"}</p>
+      <button type="button" className={styles.primary} onClick={checkAgain} disabled={checking}>
+        {checking ? "Checking..." : "Check again"}
+      </button>
     </div>
   );
 }

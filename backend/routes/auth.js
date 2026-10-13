@@ -179,10 +179,12 @@ router.post('/connect', rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }), async 
     }
     const io = getIo();
     if (io) {
-      io.to(`couple:${couple._id}`).emit('partner:joined', {
+      const payload = {
         partner: partner.toPublic(),
         couple: presentCouple(updated, host),
-      });
+      };
+      io.to(`couple:${couple._id}`).emit('partner:joined', payload);
+      io.to(`user:${host._id}`).emit('partner:joined', payload);
     }
     res.status(200).json({
       token: signToken(partner),
