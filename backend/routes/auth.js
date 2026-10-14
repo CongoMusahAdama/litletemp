@@ -33,6 +33,26 @@ function otherPartnerId(couple, userId) {
     .find((id) => id && id !== String(userId)) || '';
 }
 
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function loginKey(value) {
+  return cleanName(value).toLowerCase();
+}
+
+async function findByLoginName(value) {
+  const key = loginKey(value);
+  const typed = cleanName(value);
+  if (key.length < 2) return null;
+  return User.findOne({
+    $or: [
+      { username: key },
+      { name: new RegExp(`^${escapeRegex(typed)}$`, 'i') },
+    ],
+  });
+}
+
 async function findUsername(username) {
   if (!username) return null;
   return User.findOne({ username });
@@ -122,10 +142,11 @@ function makeGatePassword() {
 router.post('/host', rateLimit({ windowMs: 60 * 60 * 1000, max: 8 }), async (req, res, next) => {
   try {
     const myName = cleanName(req.body.name || req.body.myName);
-    if (!myName) return res.status(400).json({ error: 'Enter your name' });
+    if (loginKey(myName).length < 2) return res.status(400).json({ error: 'Enter your name' });
+    if (await findByLoginName(myName)) return res.status(409).json({ error: 'That name is already used. Choose another.' });
     const accessId = await makeAccessId();
     const gatePassword = makeGatePassword();
-    const user = await User.create({ name: myName, accessId });
+    const user = await User.create({ name: myName, username: loginKey(myName), accessId });
     const couple = await Couple.create({
       partner1: user._id,
       inviteCode: await makeInviteCode(),
@@ -141,6 +162,7 @@ router.post('/host', rateLimit({ windowMs: 60 * 60 * 1000, max: 8 }), async (req
       couple: presentCouple(couple, user),
     });
   } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ error: 'That name is already used. Choose another.' });
     next(error);
   }
 });
@@ -150,7 +172,7 @@ router.post('/connect', rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }), async 
     const myName = cleanName(req.body.name || req.body.myName);
     const accessId = String(req.body.accessId || req.body.partnerId || '').replace(/\D/g, '');
     const password = String(req.body.password || '').replace(/\D/g, '');
-    if (!myName || !/^\d{9}$/.test(accessId) || !/^\d{4,6}$/.test(password)) {
+    if (loginKey(myName).length < 2 || !/^\d{9}$/.test(accessId) || !/^\d{4,6}$/.test(password)) {
       return res.status(400).json({ error: 'Enter your name, your partner’s ID, and the password they showed you' });
     }
     const host = await User.findOne({ accessId });
@@ -158,13 +180,17 @@ router.post('/connect', rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }), async 
     const couple = await Couple.findById(host.coupleId);
     if (!couple) return res.status(404).json({ error: 'That ID was not found' });
     if (couple.partner2 || couple.status === 'active') {
-      return res.status(409).json({ error: 'This ID is already paired. Sign in with your own ID and password.' });
+      return res.status(409).json({ error: 'This ID is already paired. Sign in with your name and password.' });
+    }
+    if (await findByLoginName(myName)) {
+      return res.status(409).json({ error: 'That name is already used. Choose another.' });
     }
     if (couple.gatePassword !== password) {
       return res.status(401).json({ error: 'That password does not match. Ask your partner to read it again.' });
     }
     const partner = await User.create({
       name: myName,
+      username: loginKey(myName),
       accessId: await makeAccessId(),
       coupleId: couple._id,
     });
@@ -175,7 +201,7 @@ router.post('/connect', rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }), async 
     );
     if (!updated) {
       await User.deleteOne({ _id: partner._id });
-      return res.status(409).json({ error: 'This ID is already paired. Sign in with your own ID and password.' });
+      return res.status(409).json({ error: 'This ID is already paired. Sign in with your name and password.' });
     }
     const io = getIo();
     if (io) {
@@ -193,25 +219,22 @@ router.post('/connect', rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }), async 
       partner: host.toPublic(),
     });
   } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ error: 'That name is already used. Choose another.' });
     next(error);
   }
 });
 
 router.post('/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }), async (req, res, next) => {
   try {
-    const accessId = String(req.body.accessId || req.body.username || '').replace(/\D/g, '');
-    const username = cleanUsername(req.body.username);
+    const loginName = cleanName(req.body.name || req.body.username);
     const password = String(req.body.password || '').trim();
-    if (!password) return res.status(400).json({ error: 'Enter your ID and password' });
-    let user = null;
-    if (/^\d{9}$/.test(accessId)) user = await User.findOne({ accessId });
-    if (!user && usernameOk(username)) user = await findUsername(username);
-    if (!user) return res.status(401).json({ error: 'ID or password is incorrect' });
-    if (!user.passwordHash) {
-      return res.status(403).json({ error: 'Choose a password after you pair. Open the app with the ID you were given.' });
+    if (loginKey(loginName).length < 2 || !password) {
+      return res.status(400).json({ error: 'Enter your name and password' });
     }
+    const user = await findByLoginName(loginName);
+    if (!user || !user.passwordHash) return res.status(401).json({ error: 'Name or password is incorrect' });
     const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) return res.status(401).json({ error: 'ID or password is incorrect' });
+    if (!ok) return res.status(401).json({ error: 'Name or password is incorrect' });
     const couple = user.coupleId ? await Couple.findById(user.coupleId) : null;
     if (!couple) return res.status(403).json({ error: 'Account is not paired yet' });
     return welcome(res, user, couple);

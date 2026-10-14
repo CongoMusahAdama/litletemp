@@ -81,7 +81,7 @@ export function PairingBoard() {
     <div className={styles.gate}>
       <p className={styles.kicker}>Allow your partner in</p>
       <h1 className={styles.title}>Tell them this ID and password</h1>
-      <p className={styles.lead}>They type it once. After you are connected, each of you chooses a private password.</p>
+      <p className={styles.lead}>They type this once. Then each of you picks a password and signs in with your name.</p>
       <div className={styles.card}>
         <div className={styles.row}>
           <span>Your ID</span>
@@ -131,7 +131,7 @@ export function PasswordSetup() {
       <p className={styles.kicker}>You are paired</p>
       <h1 className={styles.title}>Choose your password</h1>
       <p className={styles.lead}>
-        Next time, sign in with your ID <strong>{prettyId(user?.accessId)}</strong> and this password. You will not pair again.
+        Next time, sign in with your name <strong>{user?.name}</strong> and this password. You will not pair again.
       </p>
       <label className={styles.field}>
         New password

@@ -165,7 +165,7 @@ export default function MoreTab() {
 
   useEffect(() => {
     if (!user) return;
-    setName(user.username || user.name);
+    setName(user.name || user.username);
     setUsername(user.username && user.username !== user.name ? user.name : "");
     setEditName(user.name);
     setEditUsername(user.username ? `@${user.username}` : "");

@@ -3,7 +3,7 @@ const { publicMedia } = require('../lib/present');
 
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, maxlength: 40 },
-  username: { type: String, trim: true, sparse: true, unique: true, maxlength: 32 },
+  username: { type: String, trim: true, sparse: true, unique: true, maxlength: 40 },
   accessId: { type: String, trim: true, sparse: true, unique: true, maxlength: 9 },
   pinHash: { type: String },
   passwordHash: { type: String },

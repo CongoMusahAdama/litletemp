@@ -42,12 +42,10 @@ export default function LoginScreen({ onLogin }: Props) {
     if (!loginUsername.trim() || !loginPassword.trim()) return;
     setLoading(true);
     try {
-      const raw = loginUsername.trim();
       const data = await api<{ token: string }>("/api/auth/login", {
         method: "POST",
         body: JSON.stringify({
-          accessId: raw.replace(/\D/g, ""),
-          username: raw.toLowerCase(),
+          name: loginUsername.trim(),
           password: loginPassword,
         }),
       });
@@ -56,7 +54,7 @@ export default function LoginScreen({ onLogin }: Props) {
       onLogin();
     } catch (error) {
       const msg = error instanceof Error ? error.message : "";
-      Swal.fire({ title: "Sign in failed", text: msg || "Check your ID and password", icon: "error", confirmButtonColor: "#1a1a1a" });
+      Swal.fire({ title: "Sign in failed", text: msg || "Check your name and password", icon: "error", confirmButtonColor: "#1a1a1a" });
     } finally {
       setLoading(false);
     }
@@ -81,7 +79,7 @@ export default function LoginScreen({ onLogin }: Props) {
   };
 
   const openHost = async () => {
-    if (!myName.trim()) return;
+    if (myName.trim().length < 2) return;
     setLoading(true);
     try {
       const data = await api<{ token: string }>("/api/auth/host", {
@@ -100,7 +98,7 @@ export default function LoginScreen({ onLogin }: Props) {
 
   const connectPartner = async () => {
     const accessId = pairingCode.replace(/\D/g, "");
-    if (!myName.trim() || accessId.length !== 9 || loginPassword.trim().length < 4) return;
+    if (myName.trim().length < 2 || accessId.length !== 9 || loginPassword.trim().length < 4) return;
     setLoading(true);
     try {
       const data = await api<{ token: string }>("/api/auth/connect", {
@@ -170,7 +168,7 @@ export default function LoginScreen({ onLogin }: Props) {
     } else if (step === "how") {
       setStep("intro");
     } else if (step === "action_choice") {
-      setStep("how");
+      setStep("intro");
     } else if (step === "start_names" || step === "join_code") {
       setStep("action_choice");
     } else if (step === "share_code") {
@@ -187,17 +185,16 @@ export default function LoginScreen({ onLogin }: Props) {
           <div className={styles.namesScreen}>
             <div className={styles.headerPick} style={{ paddingTop: 40 }}>
               <h1 className={styles.titlePick} style={{ fontSize: '30px' }}>Welcome back</h1>
-              <p className={styles.subtitlePick}>Sign in with your ID and the password you chose after pairing.</p>
+              <p className={styles.subtitlePick}>Sign in with your name and the password you chose after pairing.</p>
             </div>
             <div className={styles.namesForm}>
               <div className={styles.nameField}>
-                <label className={styles.nameLabel}>Your ID</label>
+                <label className={styles.nameLabel}>Your name</label>
                 <input
                   type="text"
                   id="input-login-username"
                   className={styles.nameInput}
-                  placeholder="202 096 585"
-                  inputMode="numeric"
+                  placeholder="The name you paired with"
                   value={loginUsername}
                   onChange={e => setLoginUsername(e.target.value)}
                   autoFocus
@@ -220,7 +217,7 @@ export default function LoginScreen({ onLogin }: Props) {
               id="btn-login"
               className={styles.getStartedBtn}
               onClick={handleLogin}
-              disabled={!loginUsername.trim() || !loginPassword.trim() || loading}
+              disabled={loginUsername.trim().length < 2 || !loginPassword.trim() || loading}
             >
               {loading ? <div className={styles.spinner} /> : "Sign In"}
             </button>
@@ -239,7 +236,7 @@ export default function LoginScreen({ onLogin }: Props) {
           <div className={styles.namesScreen}>
             <div className={styles.headerPick} style={{ paddingTop: 40 }}>
               <h1 className={styles.titlePick}>Create your password</h1>
-              <p className={styles.subtitlePick}>This replaces the password your partner used to connect. Next time you sign in with your ID and this password.</p>
+              <p className={styles.subtitlePick}>Next time you sign in with your name and this password.</p>
             </div>
             <div className={styles.namesForm}>
               <div className={styles.nameField}>
@@ -289,7 +286,7 @@ export default function LoginScreen({ onLogin }: Props) {
                 <p className={styles.welcomeText}>
                   A private little world for you and your person. Nobody else gets in.
                 </p>
-                <button className={styles.welcomeNext} onClick={() => setStep("how")} aria-label="Continue">
+                <button className={styles.welcomeNext} onClick={() => setStep("action_choice")} aria-label="Continue">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="5" y1="12" x2="19" y2="12" />
                     <polyline points="12 5 19 12 12 19" />
@@ -357,7 +354,7 @@ export default function LoginScreen({ onLogin }: Props) {
               </li>
               <li>
                 <span>3</span>
-                <p><strong>Each of you then chooses a private password.</strong> After that, sign in with your own ID. The chat stays.</p>
+                <p><strong>Each of you then chooses a private password.</strong> After that, sign in with your name and that password. The chat stays.</p>
               </li>
             </ol>
             <button type="button" className={styles.guideNext} onClick={() => setStep("action_choice")}>
@@ -375,7 +372,8 @@ export default function LoginScreen({ onLogin }: Props) {
                 <span className={styles.stepDot} />
                 <span className={styles.stepDot} />
               </div>
-              <h1 className={styles.titlePick}>How would you like to begin?</h1>
+              <h1 className={styles.titlePick}>Pair once, then just sign in</h1>
+              <p className={styles.subtitlePick}>One of you shows an ID. The other types it. After that, each of you signs in with your name and a password.</p>
             </div>
 
             <div className={styles.picks}>
@@ -432,7 +430,7 @@ export default function LoginScreen({ onLogin }: Props) {
                 </div>
                 <div className={styles.cardInfo}>
                   <h3>Sign in</h3>
-                  <p>We already paired</p>
+                  <p>Name and password</p>
                 </div>
               </button>
             </div>
@@ -447,7 +445,7 @@ export default function LoginScreen({ onLogin }: Props) {
           <div className={styles.namesScreen}>
             <div className={styles.headerPick}>
               <h1 className={styles.titlePick}>What should we call you?</h1>
-              <p className={styles.subtitlePick}>Next you will see an ID and a password to read to your partner. You only pair once.</p>
+              <p className={styles.subtitlePick}>This is the name you will use to sign in.</p>
             </div>
             <div className={styles.namesForm}>
               <div className={styles.nameField}>
@@ -465,7 +463,7 @@ export default function LoginScreen({ onLogin }: Props) {
             <button
               className={styles.getStartedBtn}
               onClick={openHost}
-              disabled={!myName.trim() || loading}
+              disabled={myName.trim().length < 2 || loading}
             >
               {loading ? "Opening..." : "Show my ID"}
             </button>
@@ -515,7 +513,7 @@ export default function LoginScreen({ onLogin }: Props) {
           <div className={styles.connectScreen}>
             <div className={styles.headerPick}>
               <h1 className={styles.titlePick}>Connect to your partner</h1>
-              <p className={styles.subtitlePick}>Type the ID and password on their screen. You only do this once.</p>
+              <p className={styles.subtitlePick}>Use the ID and password on their screen. This name is how you sign in next time.</p>
             </div>
             <div className={styles.namesForm}>
               <div className={styles.nameField}>
@@ -554,7 +552,7 @@ export default function LoginScreen({ onLogin }: Props) {
             <button
               className={styles.connectConfirmBtn}
               onClick={connectPartner}
-              disabled={!myName.trim() || pairingCode.replace(/\D/g, "").length !== 9 || loginPassword.trim().length < 4 || loading}
+              disabled={myName.trim().length < 2 || pairingCode.replace(/\D/g, "").length !== 9 || loginPassword.trim().length < 4 || loading}
             >
               {loading ? <div className={styles.spinner} /> : "Connect to partner"}
             </button>

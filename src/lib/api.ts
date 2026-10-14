@@ -76,9 +76,7 @@ export function uploadFile(file: File) {
 }
 
 export function shownName(person?: { name?: string; username?: string } | null, fallback = "") {
-  const username = person?.username?.trim();
-  if (username) return username;
-  return person?.name?.trim() || fallback;
+  return person?.name?.trim() || person?.username?.trim() || fallback;
 }
 
 export function mediaUrl(path: string) {
