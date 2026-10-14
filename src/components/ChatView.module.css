@@ -136,6 +136,80 @@
   color: #374151;
 }
 
+.pinBar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px 8px 12px;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.pinJump {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--text-primary);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pinMark {
+  width: 3px;
+  border-radius: 99px;
+  background: #fbbf24;
+  flex-shrink: 0;
+}
+
+.pinCopy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pinLabel {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.pinText {
+  font-size: 14px;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pinClose {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 22px;
+  line-height: 1;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.rowPinned {
+  outline: 2px solid rgba(251, 191, 36, 0.55);
+  outline-offset: 2px;
+  border-radius: 18px;
+}
+
 .headerActions {
   display: flex;
   gap: 2px;

@@ -10,6 +10,46 @@ const { getIo, isOnline } = require('../socket');
 const router = express.Router();
 router.use(requireAuth, requireCouple);
 
+const PIN_HOURS = new Set([24, 168, 720]);
+
+function pinPreview(message) {
+  if (!message || message.isDeleted) return '';
+  if (message.type === 'image') return 'Photo';
+  if (message.type === 'video') return 'Video';
+  if (message.type === 'voice') return 'Voice note';
+  return String(message.text || 'Message').slice(0, 140);
+}
+
+async function clearPin(couple) {
+  await couple.updateOne({ $unset: { pinnedMessageId: 1, pinnedUntil: 1, pinnedBy: 1 } });
+  couple.pinnedMessageId = undefined;
+  couple.pinnedUntil = undefined;
+  couple.pinnedBy = undefined;
+}
+
+async function currentPin(couple) {
+  if (!couple.pinnedMessageId || !couple.pinnedUntil) return null;
+  if (new Date(couple.pinnedUntil).getTime() <= Date.now()) {
+    await clearPin(couple);
+    return null;
+  }
+  const message = await Message.findOne({ _id: couple.pinnedMessageId, coupleId: couple._id });
+  if (!message || message.isDeleted || message.type === 'system') {
+    await clearPin(couple);
+    return null;
+  }
+  return {
+    message: presentMessage(message),
+    until: couple.pinnedUntil,
+    preview: pinPreview(message),
+  };
+}
+
+function emitPin(couple, pin) {
+  const io = getIo();
+  if (io) io.to(`couple:${couple._id}`).emit('pin:updated', pin);
+}
+
 router.get('/summary', async (req, res, next) => {
   try {
     const selfId = String(req.user._id);
@@ -118,6 +158,10 @@ router.delete('/messages/:id', async (req, res, next) => {
     const payload = presentMessage(message);
     const io = getIo();
     if (io) io.to(`couple:${req.couple._id}`).emit('message:updated', payload);
+    if (String(req.couple.pinnedMessageId || '') === String(message._id)) {
+      await clearPin(req.couple);
+      emitPin(req.couple, null);
+    }
     res.json(payload);
   } catch (error) {
     next(error);
@@ -133,6 +177,44 @@ router.post('/read', async (req, res, next) => {
     const io = getIo();
     if (io) io.to(`couple:${req.couple._id}`).emit('messages:read', { readerId: req.user._id });
     res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/pin', async (req, res, next) => {
+  try {
+    res.json((await currentPin(req.couple)) || { message: null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/messages/:id/pin', async (req, res, next) => {
+  try {
+    const hours = Number(req.body.hours);
+    if (!PIN_HOURS.has(hours)) return res.status(400).json({ error: 'Choose 24 hours, 7 days, or 30 days' });
+    const message = await Message.findOne({ _id: req.params.id, coupleId: req.couple._id });
+    if (!message || message.isDeleted || message.type === 'system') {
+      return res.status(404).json({ error: 'That message cannot be pinned' });
+    }
+    req.couple.pinnedMessageId = message._id;
+    req.couple.pinnedBy = req.user._id;
+    req.couple.pinnedUntil = new Date(Date.now() + hours * 60 * 60 * 1000);
+    await req.couple.save();
+    const pin = await currentPin(req.couple);
+    emitPin(req.couple, pin);
+    res.json(pin);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/pin', async (req, res, next) => {
+  try {
+    await clearPin(req.couple);
+    emitPin(req.couple, null);
+    res.json({ message: null });
   } catch (error) {
     next(error);
   }

@@ -35,6 +35,16 @@ interface Message {
 
 type ServerMessage = Omit<Message, "from"> & { senderId: string };
 
+type ChatPin = { id: string; preview: string; until: string };
+
+function pinTimeLeft(until: string) {
+  const ms = new Date(until).getTime() - Date.now();
+  if (ms <= 0) return "Ending";
+  const hours = Math.ceil(ms / (60 * 60 * 1000));
+  if (hours < 48) return `${hours}h left`;
+  return `${Math.ceil(hours / 24)} days left`;
+}
+
 export default function ChatView({ onBack }: Props) {
   const { user, partner, couple, refresh } = useSession();
   const partnerRef = useRef(partner);
@@ -72,6 +82,7 @@ export default function ChatView({ onBack }: Props) {
     || (couple?.expectedPartnerName && couple.expectedPartnerName !== user?.name ? couple.expectedPartnerName : "")
     || "My Babe";
   const [streakNote, setStreakNote] = useState("");
+  const [pin, setPin] = useState<ChatPin | null>(null);
 
   // Audio Recording Ref
   const recRef = useRef<{
@@ -114,6 +125,12 @@ export default function ChatView({ onBack }: Props) {
       })
       .catch(() => setMessages([]));
     api("/api/chat/read", { method: "POST" }).catch(() => undefined);
+    api<{ message: ServerMessage | null; preview?: string; until?: string }>("/api/chat/pin")
+      .then((data) => {
+        if (!data.message || !data.until) return setPin(null);
+        setPin({ id: String(data.message.id), preview: data.preview || data.message.text || "Message", until: data.until });
+      })
+      .catch(() => undefined);
 
     const socket = io(API_URL, { auth: { token: getToken() } });
     socketRef.current = socket;
@@ -141,6 +158,11 @@ export default function ChatView({ onBack }: Props) {
     });
     socket.on("message:updated", (data: ServerMessage) => {
       setMessages((prev) => prev.map((item) => item.id === String(data.id) ? asView(data) : item));
+      if (data.isDeleted) setPin((current) => current?.id === String(data.id) ? null : current);
+    });
+    socket.on("pin:updated", (data: { message?: ServerMessage | null; preview?: string; until?: string } | null) => {
+      if (!data?.message || !data.until) return setPin(null);
+      setPin({ id: String(data.message.id), preview: data.preview || data.message.text || "Message", until: data.until });
     });
     socket.on("messages:read", () => {
       setMessages((prev) => prev.map((item) => item.from === "me" ? { ...item, read: true } : item));
@@ -364,6 +386,33 @@ export default function ChatView({ onBack }: Props) {
     setContextMenu(null);
   };
 
+  const handlePinMessage = (id: string, hours: 24 | 168 | 720) => {
+    setContextMenu(null);
+    api<{ message: ServerMessage; preview: string; until: string }>(`/api/chat/messages/${id}/pin`, {
+      method: "POST",
+      body: JSON.stringify({ hours }),
+    })
+      .then((data) => setPin({ id: String(data.message.id), preview: data.preview, until: data.until }))
+      .catch(() => setStreakNote("Could not pin that message"));
+  };
+
+  const handleUnpin = () => {
+    setContextMenu(null);
+    setPin(null);
+    api("/api/chat/pin", { method: "DELETE" }).catch(() => undefined);
+  };
+
+  useEffect(() => {
+    if (!pin) return;
+    const wait = new Date(pin.until).getTime() - Date.now();
+    if (wait <= 0) {
+      setPin(null);
+      return;
+    }
+    const timer = window.setTimeout(() => setPin(null), wait);
+    return () => window.clearTimeout(timer);
+  }, [pin]);
+
   return (
     <div className={styles.chatView}>
       
@@ -535,6 +584,23 @@ export default function ChatView({ onBack }: Props) {
         </div>
       </header>
 
+      {pin && (
+        <div className={styles.pinBar}>
+          <button
+            type="button"
+            className={styles.pinJump}
+            onClick={() => document.getElementById(`msg-${pin.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
+          >
+            <span className={styles.pinMark} />
+            <span className={styles.pinCopy}>
+              <span className={styles.pinLabel}>Pinned · {pinTimeLeft(pin.until)}</span>
+              <span className={styles.pinText}>{pin.preview}</span>
+            </span>
+          </button>
+          <button type="button" className={styles.pinClose} onClick={handleUnpin} aria-label="Unpin">×</button>
+        </div>
+      )}
+
       {/* Context Menu Overlay */}
       {contextMenu && (
         <div
@@ -548,6 +614,16 @@ export default function ChatView({ onBack }: Props) {
             <button type="button" className={styles.contextMenuItem} onClick={() => handleReplyMessage(messages.find(m => m.id === contextMenu.msgId)!)}>
               Reply
             </button>
+            {messages.find((item) => item.id === contextMenu.msgId)?.isDeleted ? null : (
+              <>
+                <button type="button" className={styles.contextMenuItem} onClick={() => handlePinMessage(contextMenu.msgId, 24)}>Pin for 24 hours</button>
+                <button type="button" className={styles.contextMenuItem} onClick={() => handlePinMessage(contextMenu.msgId, 168)}>Pin for 7 days</button>
+                <button type="button" className={styles.contextMenuItem} onClick={() => handlePinMessage(contextMenu.msgId, 720)}>Pin for 30 days</button>
+              </>
+            )}
+            {pin?.id === contextMenu.msgId && (
+              <button type="button" className={styles.contextMenuItem} onClick={handleUnpin}>Unpin</button>
+            )}
             {contextMenu.isMe && messages.find((item) => item.id === contextMenu.msgId)?.type === "text" && (
               <button type="button" className={styles.contextMenuItem} onClick={() => handleEditMessage(messages.find(m => m.id === contextMenu.msgId)!)}>
                 Edit
@@ -622,7 +698,8 @@ export default function ChatView({ onBack }: Props) {
           return (
             <div
               key={msg.id}
-              className={`${styles.row} ${msg.from === "me" ? styles.rowMe : styles.rowBabe}`}
+              id={`msg-${msg.id}`}
+              className={`${styles.row} ${msg.from === "me" ? styles.rowMe : styles.rowBabe} ${pin?.id === msg.id ? styles.rowPinned : ""}`}
             >
               {msg.isDeleted ? (
                  <div className={`${styles.bubble} ${msg.from === "me" ? styles.bubbleMe : styles.bubbleBabe}`} style={{ opacity: 0.6, fontStyle: 'italic' }}>
