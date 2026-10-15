@@ -120,11 +120,10 @@
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.4);
-  z-index: 200;
+  z-index: 4000;
   display: flex;
   align-items: flex-end;
   animation: fadeIn 0.2s ease;
-  touch-action: none;
   overscroll-behavior: contain;
 }
 

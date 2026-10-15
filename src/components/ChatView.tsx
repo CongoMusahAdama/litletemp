@@ -133,7 +133,7 @@ export default function ChatView({ onBack }: Props) {
   const messagesRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const messageInputRef = useRef<HTMLInputElement>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const wallpaperInputRef = useRef<HTMLInputElement>(null);
   const wallpaperTried = useRef(false);
@@ -307,6 +307,11 @@ export default function ChatView({ onBack }: Props) {
     });
   };
 
+  const growComposer = (field: HTMLTextAreaElement) => {
+    field.style.height = "0px";
+    field.style.height = `${Math.min(field.scrollHeight, 140)}px`;
+  };
+
   const send = () => {
     if (!input.trim()) return;
 
@@ -315,6 +320,7 @@ export default function ChatView({ onBack }: Props) {
       const id = editingMsgId;
       setEditingMsgId(null);
       setInput("");
+      if (messageInputRef.current) messageInputRef.current.style.height = "";
       setMessages((prev) => prev.map((item) => item.id === id ? { ...item, text, isEdited: true } : item));
       api(`/api/chat/messages/${id}`, { method: "PATCH", body: JSON.stringify({ text }) }).catch(() => undefined);
       return;
@@ -322,6 +328,7 @@ export default function ChatView({ onBack }: Props) {
 
     const replyToId = replyingToMsg?.id;
     setInput("");
+    if (messageInputRef.current) messageInputRef.current.style.height = "";
     setReplyingToMsg(null);
     socketRef.current?.emit("typing", false);
     socketRef.current?.emit("message:send", { text: input.trim(), type: "text", replyToId });
@@ -1042,17 +1049,18 @@ export default function ChatView({ onBack }: Props) {
               </button>
 
               <div className={styles.inputPill}>
-                <input
+                <textarea
                   id="input-message"
                   ref={messageInputRef}
                   className={styles.msgInput}
                   placeholder="Message..."
+                  rows={1}
                   value={input}
                   onChange={e => {
                     setInput(e.target.value);
+                    growComposer(e.target);
                     socketRef.current?.emit("typing", e.target.value.length > 0);
                   }}
-                  onKeyDown={e => e.key === "Enter" && send()}
                 />
                 <button
                   className={`${styles.emojiToggle} ${showEmoji ? styles.emojiToggleOn : ""}`}

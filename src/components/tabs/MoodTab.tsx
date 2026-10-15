@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { io } from "socket.io-client";
 import styles from "./MoodTab.module.css";
 import { API_URL, api, getToken, shownName } from "@/lib/api";
@@ -269,7 +270,7 @@ export default function MoodTab() {
       </div>
 
       {/* Mood Picker Sheet */}
-      {picking && (
+      {picking && createPortal(
         <div className={styles.pickerSheet} onClick={() => setPicking(false)}>
           <div className={styles.pickerContent} onClick={e => e.stopPropagation()}>
             <div className={styles.pickerHandle} />
@@ -278,6 +279,7 @@ export default function MoodTab() {
               {moods.map(m => (
                 <button
                   key={m.label}
+                  type="button"
                   className={`${styles.moodOption} ${todayMood.label === m.label ? styles.moodOptionActive : ""}`}
                   style={{ "--mc": m.color, "--mbg": m.bg } as React.CSSProperties}
                   onClick={() => selectMood(m)}
@@ -290,7 +292,8 @@ export default function MoodTab() {
               ))}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Bottom panel */}
