@@ -461,7 +461,7 @@ export default function ChatView({ onBack }: Props) {
       body: JSON.stringify({ hours }),
     })
       .then((data) => setPin({ id: String(data.message.id), preview: data.preview, until: data.until }))
-      .catch(() => setStreakNote("Could not pin that message"));
+      .catch((error) => setStreakNote(error instanceof Error ? error.message : "Could not pin that message"));
   };
 
   const handleUnpin = () => {
@@ -918,6 +918,8 @@ export default function ChatView({ onBack }: Props) {
         <div ref={bottomRef} />
       </div>
       </div>
+
+      {streakNote && <p className={styles.noteToast}>{streakNote}</p>}
 
       {draftMedia && (
         <div className={styles.previewSheet}>

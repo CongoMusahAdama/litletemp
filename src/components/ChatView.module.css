@@ -282,6 +282,16 @@
   color: var(--text-secondary);
 }
 
+.noteToast {
+  margin: 0 12px 8px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .chatBody {
   position: relative;
   flex: 1;

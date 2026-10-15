@@ -50,7 +50,7 @@ function createApp() {
   });
 
   app.get('/api/health', (_req, res) => {
-    res.json({ ok: true, db: mongoose.connection.readyState === 1 ? 'up' : 'down' });
+    res.json({ ok: true, db: mongoose.connection.readyState === 1 ? 'up' : 'down', pin: true });
   });
 
   app.use('/api/auth', authRoutes);
