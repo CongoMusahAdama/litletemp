@@ -1,11 +1,11 @@
 const Message = require('../models/Message');
-const { presentMessage } = require('./present');
+const { presentMessage, bareUpload } = require('./present');
 const { touchStreak } = require('./couple');
 
 async function saveMessage(user, couple, body) {
   const type = ['text', 'voice', 'image', 'video'].includes(body.type) ? body.type : 'text';
   const text = body.text ? String(body.text).trim().slice(0, 4000) : '';
-  const mediaUrl = body.mediaUrl ? String(body.mediaUrl).slice(0, 500) : '';
+  const mediaUrl = body.mediaUrl ? bareUpload(body.mediaUrl) : '';
   if (type === 'text' && !text) {
     const error = new Error('Message cannot be empty');
     error.status = 400;

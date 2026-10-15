@@ -67,4 +67,10 @@ router.post('/', rateLimit({ windowMs: 15 * 60 * 1000, max: 40 }), requireAuth, 
   }
 });
 
+router.post('/link', requireAuth, (req, res) => {
+  const url = publicMedia(req.body?.url || '');
+  if (!url.startsWith('/uploads/')) return res.status(404).json({ error: 'Photo not found' });
+  res.json({ url });
+});
+
 module.exports = router;

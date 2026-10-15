@@ -2,7 +2,7 @@ const express = require('express');
 const JournalEntry = require('../models/JournalEntry');
 const Message = require('../models/Message');
 const { requireAuth, requireCouple } = require('../middleware/auth');
-const { presentMessage, publicMedia } = require('../lib/present');
+const { presentMessage, publicMedia, bareUpload } = require('../lib/present');
 const { getIo } = require('../socket');
 
 const router = express.Router();
@@ -54,7 +54,7 @@ router.post('/', async (req, res, next) => {
       favorite: Boolean(req.body.favorite),
       media: Array.isArray(req.body.media)
         ? req.body.media.slice(0, 8).map((item) => ({
-          url: publicMedia(item?.url).slice(0, 500),
+          url: bareUpload(item?.url),
           type: ['image', 'video', 'audio'].includes(item?.type) ? item.type : 'image',
         })).filter((item) => item.url)
         : [],

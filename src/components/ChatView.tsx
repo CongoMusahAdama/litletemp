@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
 import { io, Socket } from "socket.io-client";
 import styles from "./ChatView.module.css";
 import { API_URL, api, getToken, mediaUrl, shownName, uploadFile } from "@/lib/api";
@@ -45,6 +45,41 @@ function pinTimeLeft(until: string) {
   return `${Math.ceil(hours / 24)} days left`;
 }
 
+function ChatPhoto({ src, onOpen, children }: { src: string; onOpen: (url: string) => void; children: ReactNode }) {
+  const [current, setCurrent] = useState(src);
+  const [failed, setFailed] = useState(false);
+  const tried = useRef(false);
+
+  useEffect(() => {
+    setCurrent(src);
+    setFailed(false);
+    tried.current = false;
+  }, [src]);
+
+  if (failed) return <div className={styles.mediaMissing}>Photo unavailable</div>;
+
+  return (
+    <button type="button" className={styles.mediaFrame} onClick={() => onOpen(current)}>
+      <img
+        src={current}
+        alt=""
+        className={styles.mediaImg}
+        onError={() => {
+          if (tried.current) {
+            setFailed(true);
+            return;
+          }
+          tried.current = true;
+          api<{ url: string }>("/api/uploads/link", { method: "POST", body: JSON.stringify({ url: current }) })
+            .then((data) => setCurrent(mediaUrl(data.url)))
+            .catch(() => setFailed(true));
+        }}
+      />
+      {children}
+    </button>
+  );
+}
+
 export default function ChatView({ onBack }: Props) {
   const { user, partner, couple, refresh } = useSession();
   const partnerRef = useRef(partner);
@@ -82,6 +117,7 @@ export default function ChatView({ onBack }: Props) {
     || (couple?.expectedPartnerName && couple.expectedPartnerName !== user?.name ? couple.expectedPartnerName : "")
     || "My Babe";
   const [streakNote, setStreakNote] = useState("");
+  const [micAsk, setMicAsk] = useState<null | "note" | "call" | "video" | "answer">(null);
   const [pin, setPin] = useState<ChatPin | null>(null);
 
   // Audio Recording Ref
@@ -100,6 +136,7 @@ export default function ChatView({ onBack }: Props) {
   const messageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const wallpaperInputRef = useRef<HTMLInputElement>(null);
+  const wallpaperTried = useRef(false);
 
   // Socket state
   const socketRef = useRef<Socket | null>(null);
@@ -176,6 +213,9 @@ export default function ChatView({ onBack }: Props) {
     socket.on("partner:updated", () => {
       refresh().catch(() => undefined);
     });
+    socket.on("couple:updated", () => {
+      refresh().catch(() => undefined);
+    });
     socket.on("streak:updated", () => {
       api<{ streak: number; state: "start" | "saved" | "waiting" | "expiring" | "lost"; hoursLeft: number }>("/api/chat/streak")
         .then((view) => {
@@ -201,8 +241,36 @@ export default function ChatView({ onBack }: Props) {
   }, [user]);
 
   useEffect(() => {
-    if (couple?.wallpaperUrl) setWallpaper(mediaUrl(couple.wallpaperUrl));
+    if (!call.notice) return;
+    if (/microphone|camera/i.test(call.notice)) {
+      setMicAsk(call.notice.includes("answer") ? "answer" : call.notice.includes("video") ? "video" : "call");
+    }
+  }, [call.notice]);
+
+  const allowRecording = () => {
+    const kind = micAsk;
+    setMicAsk(null);
+    if (kind === "note") void startRecording();
+    else if (kind === "answer") void call.accept();
+    else if (kind === "video") void call.start("video");
+    else void call.start("voice");
+  };
+
+  useEffect(() => {
+    wallpaperTried.current = false;
+    setWallpaper(couple?.wallpaperUrl ? mediaUrl(couple.wallpaperUrl) : null);
   }, [couple?.wallpaperUrl]);
+
+  const repairWallpaper = () => {
+    if (wallpaperTried.current || !couple?.wallpaperUrl) {
+      setWallpaper(null);
+      return;
+    }
+    wallpaperTried.current = true;
+    api<{ url: string }>("/api/uploads/link", { method: "POST", body: JSON.stringify({ url: couple.wallpaperUrl }) })
+      .then((data) => setWallpaper(mediaUrl(data.url)))
+      .catch(() => setWallpaper(null));
+  };
 
   useEffect(() => {
     api<{ streak: number; state: "start" | "saved" | "waiting" | "expiring" | "lost"; hoursLeft: number }>("/api/chat/streak")
@@ -329,7 +397,7 @@ export default function ChatView({ onBack }: Props) {
     } catch {
       void ctx.close();
       setIsRecording(false);
-      setStreakNote("Allow the microphone, then try the voice note again");
+      setMicAsk("note");
     }
   };
 
@@ -557,8 +625,8 @@ export default function ChatView({ onBack }: Props) {
               🔥 {streak}
             </button>
           </div>
-          <p className={styles.chatStatus} style={{ color: call.notice || streakNote ? '#22c55e' : partnerOnline ? '#22c55e' : '#ef4444' }}>
-            {call.notice || streakNote || (partnerOnline ? "Online" : couple?.status === "pending" ? "Waiting to join" : "Offline")}
+          <p className={styles.chatStatus} style={{ color: partnerOnline ? '#22c55e' : '#ef4444' }}>
+            {partnerOnline ? "Online" : couple?.status === "pending" ? "Waiting to join" : "Offline"}
           </p>
         </div>
 
@@ -583,6 +651,17 @@ export default function ChatView({ onBack }: Props) {
           </button>
         </div>
       </header>
+
+      {micAsk && (
+        <div className={styles.micScrim}>
+          <div className={styles.micCard}>
+            <h2>Allow recording</h2>
+            <p>Voice notes and calls need the microphone. Tap allow, then accept it on your phone.</p>
+            <button type="button" className={styles.micAllow} onClick={allowRecording}>Allow recording</button>
+            <button type="button" className={styles.micLater} onClick={() => setMicAsk(null)}>Not now</button>
+          </div>
+        </div>
+      )}
 
       {pin && (
         <div className={styles.pinBar}>
@@ -639,6 +718,8 @@ export default function ChatView({ onBack }: Props) {
       )}
 
       {/* Messages */}
+      <div className={styles.chatBody}>
+      {wallpaper && <img src={wallpaper} alt="" className={styles.wallpaper} onError={repairWallpaper} />}
       <div 
         ref={messagesRef}
         className={styles.messages}
@@ -660,8 +741,7 @@ export default function ChatView({ onBack }: Props) {
               });
             })
             .finally(() => { loadingOlder.current = false; });
-        }} 
-        style={wallpaper ? { backgroundImage: `url(${wallpaper})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
+        }}
       >
         {streakState === "expiring" && (
           <div className={styles.streakBanner}>
@@ -746,14 +826,12 @@ export default function ChatView({ onBack }: Props) {
                         <span className={styles.bubbleTime}>{msg.time}{msg.from === "me" && <DoubleCheck read={msg.read} />}</span>
                       </div>
                     ) : msg.mediaUrl ? (
-                      // Normal image
-                      <button type="button" className={styles.mediaFrame} onClick={() => setViewer({ url: msg.mediaUrl || "", kind: "image" })}>
-                        <img src={msg.mediaUrl} alt="" className={styles.mediaImg} />
+                      <ChatPhoto src={msg.mediaUrl} onOpen={(url) => setViewer({ url, kind: "image" })}>
                         <span className={styles.mediaTime}>
                           {msg.time}
                           {msg.from === "me" && <DoubleCheck read={msg.read} light />}
                         </span>
-                      </button>
+                      </ChatPhoto>
                     ) : null
                   )}
 
@@ -839,6 +917,7 @@ export default function ChatView({ onBack }: Props) {
 
         <div ref={bottomRef} />
       </div>
+      </div>
 
       {draftMedia && (
         <div className={styles.previewSheet}>
@@ -910,9 +989,9 @@ export default function ChatView({ onBack }: Props) {
       )}
 
       {/* Hidden file inputs */}
-      <input type="file" accept="image/*" ref={fileInputRef} onChange={e => handleFile(e, "image")} style={{ display: "none" }} />
+      <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" ref={fileInputRef} onChange={e => handleFile(e, "image")} style={{ display: "none" }} />
       <input type="file" accept="video/*" ref={videoInputRef} onChange={e => handleFile(e, "video")} style={{ display: "none" }} />
-      <input type="file" accept="image/*" ref={wallpaperInputRef} onChange={handleWallpaperChange} style={{ display: "none" }} />
+      <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" ref={wallpaperInputRef} onChange={handleWallpaperChange} style={{ display: "none" }} />
 
       {/* Input bar wrapper */}
       <div className={styles.composer}>

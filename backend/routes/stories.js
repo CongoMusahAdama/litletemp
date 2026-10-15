@@ -2,7 +2,7 @@ const express = require('express');
 const Story = require('../models/Story');
 const { requireAuth, requireCouple } = require('../middleware/auth');
 const { getIo } = require('../socket');
-const { publicMedia } = require('../lib/present');
+const { publicMedia, bareUpload } = require('../lib/present');
 
 const router = express.Router();
 router.use(requireAuth, requireCouple);
@@ -48,7 +48,7 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const mediaUrl = publicMedia(req.body.mediaUrl).slice(0, 500);
+    const mediaUrl = bareUpload(req.body.mediaUrl);
     if (!mediaUrl) return res.status(400).json({ error: 'A photo or video is required' });
     const story = await Story.create({
       coupleId: req.couple._id,

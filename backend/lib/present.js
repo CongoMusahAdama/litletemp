@@ -25,6 +25,12 @@ function signUpload(filename, now = Date.now()) {
   return `/uploads/${encodeURIComponent(filename)}?exp=${exp}&sig=${sig}`;
 }
 
+function bareUpload(url) {
+  const filename = uploadFilename(url);
+  if (!filename) return '';
+  return `/uploads/${filename}`;
+}
+
 function publicMedia(url, now = Date.now()) {
   const filename = uploadFilename(url);
   if (!filename) return String(url || '');
@@ -97,6 +103,7 @@ module.exports = {
   presentCouple,
   daysUntil,
   publicMedia,
+  bareUpload,
   uploadFilename,
   verifyUpload,
 };

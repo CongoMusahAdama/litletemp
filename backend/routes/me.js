@@ -5,7 +5,7 @@ const JournalEntry = require('../models/JournalEntry');
 const BucketItem = require('../models/BucketItem');
 const User = require('../models/User');
 const { requireAuth, requireCouple } = require('../middleware/auth');
-const { presentCouple, daysUntil, presentMessage } = require('../lib/present');
+const { presentCouple, daysUntil, presentMessage, bareUpload } = require('../lib/present');
 const { getIo } = require('../socket');
 
 const router = express.Router();
@@ -31,7 +31,11 @@ router.patch('/', async (req, res, next) => {
       }
       req.user.username = clean || undefined;
     }
-    if (avatarUrl !== undefined) req.user.avatarUrl = String(avatarUrl).slice(0, 500);
+    if (avatarUrl !== undefined) {
+      const next = String(avatarUrl || '');
+      req.user.avatarUrl = next ? bareUpload(next) : '';
+      if (next && !req.user.avatarUrl) return res.status(400).json({ error: 'That photo could not be saved' });
+    }
     if (typeof notifications === 'boolean') req.user.notifications = notifications;
     if (language) req.user.language = String(language).slice(0, 40);
     if (theme === 'light' || theme === 'dark') req.user.theme = theme;
@@ -108,7 +112,9 @@ router.patch('/couple', requireCouple, async (req, res, next) => {
       req.couple.anniversary = date;
     }
     if (req.body.wallpaperUrl !== undefined) {
-      req.couple.wallpaperUrl = String(req.body.wallpaperUrl).slice(0, 500);
+      const next = String(req.body.wallpaperUrl || '');
+      req.couple.wallpaperUrl = next ? bareUpload(next) : '';
+      if (next && !req.couple.wallpaperUrl) return res.status(400).json({ error: 'That photo could not be saved' });
     }
     await req.couple.save();
     const io = getIo();

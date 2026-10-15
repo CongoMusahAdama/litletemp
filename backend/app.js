@@ -40,6 +40,7 @@ function createApp() {
       if (!doc) return res.status(404).end();
       res.set('Content-Type', doc.contentType);
       res.set('Cache-Control', 'private, max-age=3600');
+      res.set('Cross-Origin-Resource-Policy', 'cross-origin');
       res.set('X-Content-Type-Options', 'nosniff');
       res.send(doc.data);
     } catch (error) {
