@@ -14,8 +14,8 @@ const menuItems = [
     id: "play",
     label: "Play",
     sub: "Couple games",
-    iconBg: "#FEF3C7",
-    iconColor: "#D97706",
+    iconBg: "#FCE7F3",
+    iconColor: "#DB2777",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="3" width="18" height="18" rx="4" />
@@ -31,8 +31,8 @@ const menuItems = [
     id: "favourites",
     label: "Favourites",
     sub: "Saved memories",
-    iconBg: "#FEF3C7",
-    iconColor: "#F59E0B",
+    iconBg: "#FCE7F3",
+    iconColor: "#E91E63",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
@@ -98,8 +98,8 @@ const menuItems = [
     id: "bubble",
     label: "Chat bubble",
     sub: "Yellow",
-    iconBg: "#FEF3C7",
-    iconColor: "#F59E0B",
+    iconBg: "#FCE7F3",
+    iconColor: "#E91E63",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -110,8 +110,8 @@ const menuItems = [
     id: "theme",
     label: "Appearance",
     sub: "Light mode",
-    iconBg: "#FEF9C3",
-    iconColor: "#CA8A04",
+    iconBg: "#FCE7F3",
+    iconColor: "#DB2777",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="5" />
@@ -159,7 +159,7 @@ export default function MoreTab() {
   const [editUsername, setEditUsername] = useState(user?.username ? `@${user.username}` : "");
   const [stats, setStats] = useState({ memories: 0, bucket: 0, daysToGo: null as number | null });
   const [selectedBubble, setSelectedBubble] = useState<string>(
-    user?.bubbleColor || (typeof window !== "undefined" ? localStorage.getItem("lt_bubble") : "") || "#FBBF24"
+    user?.bubbleColor || (typeof window !== "undefined" ? localStorage.getItem("lt_bubble") : "") || "#FF4081"
   );
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -239,7 +239,7 @@ export default function MoreTab() {
       inputPlaceholder: "e.g., Going to sleep, Phone dying...",
       icon: "question",
       showCancelButton: true,
-      confirmButtonColor: "#FBBF24",
+      confirmButtonColor: "#FF4081",
       confirmButtonText: "Confirm Logout",
       cancelButtonColor: "#1a1a1a",
       background: "#fff",

@@ -10,17 +10,140 @@
   height: 100dvh;
   transform: translateX(-50%);
   overflow: hidden;
-  background: #ffe14a;
+  background: radial-gradient(circle at 50% 45%, #FF5C95 0%, #FF4081 55%, #F2336F 100%);
   padding: env(safe-area-inset-top) 24px env(safe-area-inset-bottom);
 }
 
-.logo {
-  width: min(196px, 52vw);
-  height: auto;
-  aspect-ratio: 1;
-  object-fit: contain;
+.stage {
+  position: relative;
+  width: min(190px, 50vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-:global([data-theme="dark"]) .splash {
-  background: #121212;
+/* 1. Pop in with a spring, tilt like a wink, then a heartbeat squash. */
+.logo {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  transform-origin: 50% 80%;
+  opacity: 0;
+  animation:
+    popIn 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s forwards,
+    heartbeat 0.7s ease-in-out 1.05s 1;
+}
+
+@keyframes popIn {
+  0%   { opacity: 0; transform: scale(0.3) rotate(-14deg) translateY(30px); }
+  55%  { opacity: 1; transform: scale(1.08) rotate(5deg) translateY(-6px); }
+  78%  { transform: scale(0.97) rotate(-2deg) translateY(0); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg) translateY(0); }
+}
+
+@keyframes heartbeat {
+  0%   { transform: scale(1); }
+  20%  { transform: scale(1.07, 0.95); }
+  40%  { transform: scale(0.97, 1.04); }
+  60%  { transform: scale(1.04, 0.98); }
+  100% { transform: scale(1); }
+}
+
+/* 2. After landing, drift up and down softly. */
+.float {
+  width: 100%;
+  animation: floaty 2.6s ease-in-out 0.9s infinite;
+}
+
+@keyframes floaty {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-10px) rotate(-1.5deg); }
+}
+
+/* Soft shadow that shrinks as the logo floats up. */
+.shadow {
+  width: 55%;
+  height: 12px;
+  margin-top: 14px;
+  border-radius: 50%;
+  background: rgba(120, 0, 40, 0.22);
+  filter: blur(6px);
+  opacity: 0;
+  animation:
+    shadowIn 0.6s ease 0.5s forwards,
+    shadowBreathe 2.6s ease-in-out 0.9s infinite;
+}
+
+@keyframes shadowIn { to { opacity: 1; } }
+
+@keyframes shadowBreathe {
+  0%, 100% { transform: scaleX(1); opacity: 1; }
+  50%      { transform: scaleX(0.8); opacity: 0.6; }
+}
+
+/* 3. Glow and rings pulse out from behind the logo. */
+.glow,
+.ring {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.glow {
+  width: 150%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) scale(0.4);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 65%);
+  opacity: 0;
+  animation: glowIn 1s ease 0.3s forwards;
+}
+
+@keyframes glowIn {
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.ring {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  transform: translate(-50%, -50%) scale(0.6);
+  opacity: 0;
+  animation: ripple 2s ease-out 0.55s infinite;
+}
+
+.ringLate { animation-delay: 1.25s; }
+
+@keyframes ripple {
+  0%   { opacity: 0.8; transform: translate(-50%, -50%) scale(0.6); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.9); }
+}
+
+/* 4. Little sparkles twinkle around it. */
+.spark {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  opacity: 0;
+  animation: twinkle 1.6s ease-in-out infinite;
+}
+
+.sparkA { left: -14%; top: 12%; animation-delay: 0.7s; }
+.sparkB { right: -10%; top: 2%; width: 14px; height: 14px; animation-delay: 1s; }
+.sparkC { right: -4%; top: 62%; width: 8px; height: 8px; animation-delay: 1.35s; }
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0; transform: scale(0.3) rotate(0deg); }
+  50%      { opacity: 1; transform: scale(1) rotate(45deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo { opacity: 1; animation: none; }
+  .float, .shadow, .ring, .spark { animation: none; }
+  .shadow, .glow { opacity: 1; }
+  .ring, .spark { display: none; }
 }

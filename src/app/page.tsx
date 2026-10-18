@@ -23,11 +23,11 @@ export default function Home() {
 
   if (!user && offline) {
     return (
-      <main style={{ minHeight: "100dvh", display: "grid", placeItems: "center", padding: 24, textAlign: "center", background: "#fff6d4", color: "#1a1a1a" }}>
+      <main style={{ minHeight: "100dvh", display: "grid", placeItems: "center", padding: 24, textAlign: "center", background: "#FFE4F1", color: "#1a1a1a" }}>
         <div>
           <h1 style={{ fontSize: 32, letterSpacing: "-0.04em" }}>Still connecting</h1>
           <p style={{ margin: "12px 0 20px" }}>Your bond is safe. The server is waking up.</p>
-          <button type="button" onClick={() => { refresh().catch(() => undefined); }} style={{ border: 0, borderRadius: 999, padding: "12px 18px", background: "#1a1a1a", color: "#fff6d4", font: "inherit" }}>
+          <button type="button" onClick={() => { refresh().catch(() => undefined); }} style={{ border: 0, borderRadius: 999, padding: "12px 18px", background: "#1a1a1a", color: "#FFE4F1", font: "inherit" }}>
             Try again
           </button>
         </div>

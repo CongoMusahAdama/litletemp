@@ -49,7 +49,7 @@ router.post('/', async (req, res, next) => {
       title,
       text: String(req.body.text || '').slice(0, 8000),
       mood: String(req.body.mood || 'Happy').slice(0, 40),
-      color: String(req.body.color || '#FBBF24').slice(0, 20),
+      color: String(req.body.color || '#FF4081').slice(0, 20),
       textColor: String(req.body.textColor || '#1a1a1a').slice(0, 20),
       favorite: Boolean(req.body.favorite),
       media: Array.isArray(req.body.media)

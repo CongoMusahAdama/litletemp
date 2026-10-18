@@ -5,6 +5,7 @@ import Swal from "sweetalert2";
 import styles from "./LoginScreen.module.css";
 import { api, setToken } from "@/lib/api";
 import { useSession } from "@/context/SessionContext";
+import { FaceCluster } from "./MoodFaces";
 
 interface Props {
   onLogin: () => void;
@@ -182,52 +183,59 @@ export default function LoginScreen({ onLogin }: Props) {
 
         {/* ── Quick Login ── */}
         {step === "login" && (
-          <div className={styles.namesScreen}>
-            <div className={styles.headerPick} style={{ paddingTop: 40 }}>
-              <h1 className={styles.titlePick} style={{ fontSize: '30px' }}>Welcome back</h1>
-              <p className={styles.subtitlePick}>Sign in with your name and the password you chose after pairing.</p>
+          <div className={styles.signIn}>
+            <div className={styles.signInFaces}>
+              <FaceCluster />
             </div>
-            <div className={styles.namesForm}>
-              <div className={styles.nameField}>
-                <label className={styles.nameLabel}>Your name</label>
+            <div className={styles.signInBody}>
+              <h1 className={styles.signInTitle}>Welcome back,<br />lovebird</h1>
+              <p className={styles.signInSub}>Sign in with your name and the password you chose after pairing.</p>
+              <div className={styles.signInForm}>
                 <input
                   type="text"
                   id="input-login-username"
-                  className={styles.nameInput}
-                  placeholder="The name you paired with"
+                  className={styles.signInInput}
+                  placeholder="Your name"
+                  aria-label="Your name"
+                  autoComplete="username"
                   value={loginUsername}
                   onChange={e => setLoginUsername(e.target.value)}
                   autoFocus
                 />
-              </div>
-              <div className={styles.nameField}>
-                <label className={styles.nameLabel}>Password</label>
                 <input
                   type="password"
                   id="input-login-password"
-                  className={styles.nameInput}
-                  placeholder="Your password"
+                  className={styles.signInInput}
+                  placeholder="Password"
+                  aria-label="Password"
+                  autoComplete="current-password"
                   value={loginPassword}
                   onChange={e => setLoginPassword(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && handleLogin()}
                 />
               </div>
             </div>
-            <button
-              id="btn-login"
-              className={styles.getStartedBtn}
-              onClick={handleLogin}
-              disabled={loginUsername.trim().length < 2 || !loginPassword.trim() || loading}
-            >
-              {loading ? <div className={styles.spinner} /> : "Sign In"}
-            </button>
-            <button
-              className={styles.backBtn}
-              onClick={handleBack}
-              style={{ margin: "12px auto 20px" }}
-            >
-              ← Back
-            </button>
+            <div className={styles.signInActions}>
+              <button
+                id="btn-login"
+                className={styles.signInBtn}
+                onClick={handleLogin}
+                disabled={loginUsername.trim().length < 2 || !loginPassword.trim() || loading}
+              >
+                {loading ? <div className={styles.spinnerLight} /> : (
+                  <>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    Sign In
+                  </>
+                )}
+              </button>
+              <button className={styles.signInLink} onClick={handleBack}>
+                New here? Pair with your partner
+              </button>
+            </div>
           </div>
         )}
 
@@ -317,8 +325,8 @@ export default function LoginScreen({ onLogin }: Props) {
 
             <div className={styles.handsWrap}>
               <svg className={styles.hands} viewBox="0 0 360 230" aria-hidden="true">
-                <path d="M18 230 C22 168 48 132 86 108 C64 78 78 36 118 42 C132 18 168 28 168 64 C168 92 146 112 124 118 C150 132 168 160 168 198 L168 230 Z" fill="#FFE14A" stroke="#1a1a1a" strokeWidth="7" strokeLinejoin="round" />
-                <path d="M342 230 C338 168 312 132 274 108 C296 78 282 36 242 42 C228 18 192 28 192 64 C192 92 214 112 236 118 C210 132 192 160 192 198 L192 230 Z" fill="#FFE14A" stroke="#1a1a1a" strokeWidth="7" strokeLinejoin="round" />
+                <path d="M18 230 C22 168 48 132 86 108 C64 78 78 36 118 42 C132 18 168 28 168 64 C168 92 146 112 124 118 C150 132 168 160 168 198 L168 230 Z" fill="#FF4081" stroke="#1a1a1a" strokeWidth="7" strokeLinejoin="round" />
+                <path d="M342 230 C338 168 312 132 274 108 C296 78 282 36 242 42 C228 18 192 28 192 64 C192 92 214 112 236 118 C210 132 192 160 192 198 L192 230 Z" fill="#FF4081" stroke="#1a1a1a" strokeWidth="7" strokeLinejoin="round" />
                 <path d="M180 78 C180 58 198 46 214 56 C226 40 252 46 252 70 C252 98 214 124 214 124 C214 124 180 100 180 78 Z" fill="#fff" stroke="#1a1a1a" strokeWidth="6" strokeLinejoin="round" />
               </svg>
               <div className={styles.welcomeDots}>
@@ -383,7 +391,7 @@ export default function LoginScreen({ onLogin }: Props) {
               >
                 <div className={styles.cardGraphic}>
                   <div className={styles.graphicCircle}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '28px', height: '28px', color: '#F59E0B' }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '28px', height: '28px', color: '#E91E63' }}>
                       <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
                       <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
                     </svg>
@@ -511,6 +519,12 @@ export default function LoginScreen({ onLogin }: Props) {
 
         {step === "join_code" && (
           <div className={styles.connectScreen}>
+            <div className={styles.pairArt}>
+              <img src="/pairing-hands.webp" alt="Two people sending each other love from their phones" className={styles.pairArtImg} />
+              <span className={`${styles.pairFloat} ${styles.pairFloatA}`} aria-hidden="true">♥</span>
+              <span className={`${styles.pairFloat} ${styles.pairFloatB}`} aria-hidden="true">♥</span>
+              <span className={`${styles.pairFloat} ${styles.pairFloatC}`} aria-hidden="true">♥</span>
+            </div>
             <div className={styles.headerPick}>
               <h1 className={styles.titlePick}>Connect to your partner</h1>
               <p className={styles.subtitlePick}>Use the ID and password on their screen. This name is how you sign in next time.</p>

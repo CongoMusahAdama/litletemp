@@ -20,6 +20,9 @@ type Summary = {
 };
 
 type StoryComment = { id: string; name: string; text: string; mine: boolean };
+type StoryReaction = { emoji: string; name: string; mine: boolean };
+
+const REACTIONS = ["❤️", "😍", "😂", "😮", "😢", "🔥"];
 
 type Story = {
   id: string;
@@ -30,6 +33,8 @@ type Story = {
   liked?: boolean;
   likeCount?: number;
   comments?: StoryComment[];
+  reactions?: StoryReaction[];
+  myReaction?: string;
 };
 
 export default function ChatsTab({ onOpenChat }: Props) {
@@ -98,6 +103,17 @@ export default function ChatsTab({ onOpenChat }: Props) {
   const likeStory = async () => {
     if (!watching) return;
     const story = await api<Story>(`/api/stories/${watching.id}/like`, { method: "POST" }).catch(() => null);
+    if (!story) return;
+    setWatching(story);
+    setStories((prev) => prev.map((item) => item.id === story.id ? story : item));
+  };
+
+  const reactToStory = async (emoji: string) => {
+    if (!watching) return;
+    const story = await api<Story>(`/api/stories/${watching.id}/react`, {
+      method: "POST",
+      body: JSON.stringify({ emoji }),
+    }).catch(() => null);
     if (!story) return;
     setWatching(story);
     setStories((prev) => prev.map((item) => item.id === story.id ? story : item));
@@ -237,6 +253,29 @@ export default function ChatsTab({ onOpenChat }: Props) {
             ? <video src={mediaUrl(watching.mediaUrl)} className={styles.viewerMedia} autoPlay playsInline onError={() => setStoryBroken(true)} />
             : <img src={mediaUrl(watching.mediaUrl)} alt="" className={styles.viewerMedia} onError={() => setStoryBroken(true)} />}
           <div className={styles.viewerDock}>
+            {String(watching.authorId) === String(user?.id) ? (
+              !!watching.reactions?.length && (
+                <div className={styles.viewerReactedBy}>
+                  {watching.reactions.map((item, idx) => (
+                    <span key={idx}>{item.emoji} {item.name}</span>
+                  ))}
+                </div>
+              )
+            ) : (
+              <div className={styles.viewerReactions}>
+                {REACTIONS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    className={`${styles.viewerReaction} ${watching.myReaction === emoji ? styles.viewerReactionOn : ""}`}
+                    onClick={() => void reactToStory(emoji)}
+                    aria-label={`React ${emoji}`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className={styles.viewerComments}>
               {(watching.comments || []).slice(-6).map((item) => (
                 <p key={item.id} className={styles.viewerComment}>
@@ -248,7 +287,7 @@ export default function ChatsTab({ onOpenChat }: Props) {
             <form className={styles.viewerRow} onSubmit={(event) => { event.preventDefault(); void sendComment(); }}>
               <input
                 className={styles.viewerInput}
-                placeholder="Reply to this story"
+                placeholder={String(watching.authorId) === String(user?.id) ? "Add a comment" : "Reply to this story"}
                 value={comment}
                 onChange={(event) => setComment(event.target.value)}
               />

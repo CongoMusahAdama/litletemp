@@ -1,5 +1,5 @@
 export const BUBBLES = [
-  { id: "yellow", color: "#FBBF24", ink: "#1a1a1a" },
+  { id: "brand", color: "#FF4081", ink: "#1a1a1a" },
   { id: "green", color: "#128C7E", ink: "#ffffff" },
   { id: "mint", color: "#D8F3DC", ink: "#1a1a1a" },
   { id: "indigo", color: "#3C3489", ink: "#ffffff" },

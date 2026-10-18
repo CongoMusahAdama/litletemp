@@ -9,6 +9,8 @@ import EmojiPicker from "./EmojiPicker";
 import { useCoupleCall } from "@/hooks/useCoupleCall";
 import { showHomeBadge } from "@/lib/badge";
 import { noteAudio, playMessageNote, playSendTick } from "@/lib/note";
+import StreakScreen from "./StreakScreen";
+import SnapCamera from "./SnapCamera";
 
 interface Props {
   onBack: () => void;
@@ -36,6 +38,21 @@ interface Message {
 type ServerMessage = Omit<Message, "from"> & { senderId: string };
 
 type ChatPin = { id: string; preview: string; until: string };
+
+type MenuAnchor = { top: number; bottom: number; left: number; right: number };
+
+const MENU_WIDTH = 216;
+const MENU_ROW = 46;
+
+const MenuIcon = {
+  reply: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>,
+  copy: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>,
+  pin: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 17v5" /><path d="M9 10.76V4h6v6.76a2 2 0 0 0 .55 1.38L18 15H6l2.45-2.86A2 2 0 0 0 9 10.76z" /><line x1="8" y1="4" x2="16" y2="4" /></svg>,
+  edit: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>,
+  select: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><polyline points="8 12.5 11 15.5 16 9.5" /></svg>,
+  trash: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>,
+  back: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>,
+};
 
 function pinTimeLeft(until: string) {
   const ms = new Date(until).getTime() - Date.now();
@@ -101,7 +118,13 @@ export default function ChatView({ onBack }: Props) {
   const [wallpaper, setWallpaper] = useState<string | null>(null);
 
   // Message Actions state
-  const [contextMenu, setContextMenu] = useState<{ msgId: string, x: number, y: number, isMe: boolean } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ msgId: string, anchor: MenuAnchor | null, isMe: boolean, width: number, height: number } | null>(null);
+  const [pinChoices, setPinChoices] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[] | null>(null);
+  const [showStreak, setShowStreak] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const lastTap = useRef<{ id: string; at: number }>({ id: "", at: 0 });
   const [replyingToMsg, setReplyingToMsg] = useState<Message | null>(null);
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
   const [partnerOnline, setPartnerOnline] = useState(false);
@@ -119,6 +142,12 @@ export default function ChatView({ onBack }: Props) {
   const [streakNote, setStreakNote] = useState("");
   const [micAsk, setMicAsk] = useState<null | "note" | "call" | "video" | "answer">(null);
   const [pin, setPin] = useState<ChatPin | null>(null);
+
+  useEffect(() => {
+    if (!streakNote) return;
+    const timer = window.setTimeout(() => setStreakNote(""), 2600);
+    return () => window.clearTimeout(timer);
+  }, [streakNote]);
 
   // Audio Recording Ref
   const recRef = useRef<{
@@ -437,9 +466,82 @@ export default function ChatView({ onBack }: Props) {
 
   const menuOpenedAt = useRef(0);
 
-  const openMessageMenu = (msg: Message) => {
+  const openMessageMenu = (msg: Message, target?: HTMLElement) => {
+    if (selectedIds) return;
     menuOpenedAt.current = Date.now();
-    setContextMenu({ msgId: msg.id, x: 0, y: 0, isMe: msg.from === "me" });
+    const root = rootRef.current?.getBoundingClientRect();
+    const rect = target?.getBoundingClientRect();
+    const anchor = root && rect
+      ? { top: rect.top - root.top, bottom: rect.bottom - root.top, left: rect.left - root.left, right: rect.right - root.left }
+      : null;
+    setPinChoices(false);
+    setContextMenu({ msgId: msg.id, anchor, isMe: msg.from === "me", width: root?.width || 360, height: root?.height || 640 });
+  };
+
+  const tapMessage = (msg: Message, target: HTMLElement, at: number) => {
+    if (selectedIds) {
+      setSelectedIds((ids) => {
+        if (!ids) return ids;
+        const next = ids.includes(msg.id) ? ids.filter((id) => id !== msg.id) : [...ids, msg.id];
+        return next.length ? next : null;
+      });
+      return;
+    }
+    if (lastTap.current.id === msg.id && at - lastTap.current.at < 320) {
+      lastTap.current = { id: "", at: 0 };
+      openMessageMenu(msg, target);
+      return;
+    }
+    lastTap.current = { id: msg.id, at };
+  };
+
+  const copyText = async (text: string) => {
+    setContextMenu(null);
+    try {
+      await navigator.clipboard.writeText(text);
+      setStreakNote("Copied");
+    } catch {
+      setStreakNote("Could not copy that");
+    }
+  };
+
+  const startSelecting = (id: string) => {
+    setContextMenu(null);
+    setSelectedIds([id]);
+  };
+
+  const selectedMessages = messages.filter((item) => selectedIds?.includes(item.id));
+
+  const copySelected = () => {
+    const text = selectedMessages.filter((item) => item.type === "text" && item.text).map((item) => item.text).join("\n");
+    setSelectedIds(null);
+    if (text) void copyText(text);
+    else setStreakNote("Only text can be copied");
+  };
+
+  const deleteSelected = () => {
+    const mine = selectedMessages.filter((item) => item.from === "me" && !item.isDeleted);
+    mine.forEach((item) => handleDeleteMessage(item.id));
+    setSelectedIds(null);
+    if (mine.length < selectedMessages.length) setStreakNote("Only your own messages were deleted");
+  };
+
+  const checkInStreak = async () => {
+    try {
+      const result = await api<{ streak: number; state: "start" | "saved" | "waiting" | "expiring" | "lost"; hoursLeft: number; partnerCheckedIn: boolean }>("/api/chat/streak", { method: "POST" });
+      setStreak(result.streak);
+      setStreakState(result.state);
+      setStreakHours(result.hoursLeft);
+      setStreakNote(result.partnerCheckedIn ? "Streak kept for today" : "Saved. They still need to check in");
+    } catch {
+      setStreakNote("Could not save the streak");
+    }
+  };
+
+  const sendSnap = async (file: File, viewOnce: boolean) => {
+    const uploaded = await uploadFile(file);
+    socketRef.current?.emit("message:send", { type: "image", mediaUrl: uploaded.url, viewOnce });
+    setStreakNote("Snap sent 🔥");
   };
 
   const handleDeleteMessage = (id: string) => {
@@ -489,7 +591,7 @@ export default function ChatView({ onBack }: Props) {
   }, [pin]);
 
   return (
-    <div className={styles.chatView}>
+    <div ref={rootRef} className={styles.chatView}>
       
       {/* ── Call Overlay ── */}
       {call.phase !== "idle" && (
@@ -618,18 +720,12 @@ export default function ChatView({ onBack }: Props) {
         <div className={styles.chatInfo}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
             <p className={styles.chatName}>{chatTitle}</p>
-            <button className={`${styles.streakBtn} ${streakState === "expiring" ? styles.streakHot : ""} ${streakState === "lost" ? styles.streakCold : ""}`} onClick={async () => {
-              try {
-                const result = await api<{ streak: number; state: "start" | "saved" | "waiting" | "expiring" | "lost"; hoursLeft: number; partnerCheckedIn: boolean }>("/api/chat/streak", { method: "POST" });
-                setStreak(result.streak);
-                setStreakState(result.state);
-                setStreakHours(result.hoursLeft);
-                setStreakNote(result.partnerCheckedIn ? "Streak kept for today" : "Saved. They still need to check in");
-              } catch {
-                setStreakNote("Could not save the streak");
-              }
-            }}>
-              🔥 {streak}
+            <button
+              className={`${styles.streakBtn} ${streakState === "expiring" ? styles.streakHot : ""} ${streakState === "lost" ? styles.streakCold : ""}`}
+              onClick={() => setShowStreak(true)}
+              aria-label="Open our streak"
+            >
+              {streakState === "expiring" ? "⏳" : "🔥"} {streak}
             </button>
           </div>
           <p className={styles.chatStatus} style={{ color: partnerOnline ? '#22c55e' : '#ef4444' }}>
@@ -687,42 +783,89 @@ export default function ChatView({ onBack }: Props) {
         </div>
       )}
 
-      {/* Context Menu Overlay */}
-      {contextMenu && (
-        <div
-          className={styles.menuScrim}
-          onClick={() => {
-            if (Date.now() - menuOpenedAt.current < 450) return;
-            setContextMenu(null);
-          }}
-        >
-          <div className={styles.menuSheet} onClick={(event) => event.stopPropagation()}>
-            <button type="button" className={styles.contextMenuItem} onClick={() => handleReplyMessage(messages.find(m => m.id === contextMenu.msgId)!)}>
-              Reply
-            </button>
-            {messages.find((item) => item.id === contextMenu.msgId)?.isDeleted ? null : (
-              <>
-                <button type="button" className={styles.contextMenuItem} onClick={() => handlePinMessage(contextMenu.msgId, 24)}>Pin for 24 hours</button>
-                <button type="button" className={styles.contextMenuItem} onClick={() => handlePinMessage(contextMenu.msgId, 168)}>Pin for 7 days</button>
-                <button type="button" className={styles.contextMenuItem} onClick={() => handlePinMessage(contextMenu.msgId, 720)}>Pin for 30 days</button>
-              </>
-            )}
-            {pin?.id === contextMenu.msgId && (
-              <button type="button" className={styles.contextMenuItem} onClick={handleUnpin}>Unpin</button>
-            )}
-            {contextMenu.isMe && messages.find((item) => item.id === contextMenu.msgId)?.type === "text" && (
-              <button type="button" className={styles.contextMenuItem} onClick={() => handleEditMessage(messages.find(m => m.id === contextMenu.msgId)!)}>
-                Edit
-              </button>
-            )}
-            {contextMenu.isMe && (
-              <button type="button" className={`${styles.contextMenuItem} ${styles.menuDanger}`} onClick={() => handleDeleteMessage(contextMenu.msgId)}>
-                Delete for everyone
-              </button>
-            )}
+      {/* Message menu: opens on double tap, long press or right click */}
+      {contextMenu && (() => {
+        const target = messages.find((item) => item.id === contextMenu.msgId);
+        if (!target) return null;
+        const live = !target.isDeleted;
+        const items: { key: string; label: string; icon: ReactNode; danger?: boolean; run: () => void }[] = pinChoices
+          ? [
+            { key: "back", label: "Back", icon: MenuIcon.back, run: () => setPinChoices(false) },
+            { key: "p24", label: "Pin for 24 hours", icon: MenuIcon.pin, run: () => handlePinMessage(target.id, 24) },
+            { key: "p168", label: "Pin for 7 days", icon: MenuIcon.pin, run: () => handlePinMessage(target.id, 168) },
+            { key: "p720", label: "Pin for 30 days", icon: MenuIcon.pin, run: () => handlePinMessage(target.id, 720) },
+          ]
+          : [
+            { key: "reply", label: "Reply", icon: MenuIcon.reply, run: () => handleReplyMessage(target) },
+            ...(live && target.type === "text" && target.text ? [{ key: "copy", label: "Copy Text", icon: MenuIcon.copy, run: () => void copyText(target.text || "") }] : []),
+            ...(pin?.id === target.id
+              ? [{ key: "unpin", label: "Unpin", icon: MenuIcon.pin, run: handleUnpin }]
+              : live ? [{ key: "pin", label: "Pin", icon: MenuIcon.pin, run: () => setPinChoices(true) }] : []),
+            ...(contextMenu.isMe && live && target.type === "text" ? [{ key: "edit", label: "Edit", icon: MenuIcon.edit, run: () => handleEditMessage(target) }] : []),
+            { key: "select", label: "Select", icon: MenuIcon.select, run: () => startSelecting(target.id) },
+            ...(contextMenu.isMe && live ? [{ key: "delete", label: "Delete", icon: MenuIcon.trash, danger: true, run: () => handleDeleteMessage(target.id) }] : []),
+          ];
+        const { width, height } = contextMenu;
+        const menuHeight = items.length * MENU_ROW + 12;
+        const anchor = contextMenu.anchor;
+        let top = anchor ? anchor.bottom + 6 : (height - menuHeight) / 2;
+        if (anchor && top + menuHeight > height - 12) top = anchor.top - menuHeight - 6;
+        top = Math.max(12, Math.min(top, height - menuHeight - 12));
+        let left = anchor ? (contextMenu.isMe ? anchor.right - MENU_WIDTH : anchor.left) : (width - MENU_WIDTH) / 2;
+        left = Math.max(10, Math.min(left, width - MENU_WIDTH - 10));
+        return (
+          <div
+            className={styles.menuScrim}
+            onClick={() => {
+              if (Date.now() - menuOpenedAt.current < 450) return;
+              setContextMenu(null);
+            }}
+          >
+            <div
+              className={styles.menuPopover}
+              style={{ top, left, width: MENU_WIDTH, transformOrigin: anchor && top < anchor.top ? "bottom center" : "top center" }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {items.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={`${styles.menuItem} ${item.danger ? styles.menuDanger : ""}`}
+                  onClick={item.run}
+                >
+                  <span className={styles.menuIcon}>{item.icon}</span>
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
+        );
+      })()}
+
+      {selectedIds && (
+        <div className={styles.selectBar}>
+          <button type="button" className={styles.selectCancel} onClick={() => setSelectedIds(null)} aria-label="Cancel selection">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+          </button>
+          <span className={styles.selectCount}>{selectedIds.length} selected</span>
+          <button type="button" className={styles.selectAction} onClick={copySelected} aria-label="Copy selected">{MenuIcon.copy}</button>
+          <button type="button" className={`${styles.selectAction} ${styles.menuDanger}`} onClick={deleteSelected} aria-label="Delete selected">{MenuIcon.trash}</button>
         </div>
       )}
+
+      {showStreak && (
+        <StreakScreen
+          streak={streak}
+          state={streakState}
+          hoursLeft={streakHours}
+          partnerName={chatTitle}
+          onClose={() => setShowStreak(false)}
+          onSnap={() => { setShowStreak(false); setShowCamera(true); }}
+          onCheckIn={() => void checkInStreak()}
+        />
+      )}
+
+      {showCamera && <SnapCamera onClose={() => setShowCamera(false)} onSend={sendSnap} />}
 
       {/* Messages */}
       <div className={styles.chatBody}>
@@ -786,22 +929,32 @@ export default function ChatView({ onBack }: Props) {
             <div
               key={msg.id}
               id={`msg-${msg.id}`}
-              className={`${styles.row} ${msg.from === "me" ? styles.rowMe : styles.rowBabe} ${pin?.id === msg.id ? styles.rowPinned : ""}`}
+              className={`${styles.row} ${msg.from === "me" ? styles.rowMe : styles.rowBabe} ${pin?.id === msg.id ? styles.rowPinned : ""} ${selectedIds?.includes(msg.id) ? styles.rowSelected : ""} ${contextMenu?.msgId === msg.id ? styles.rowFocused : ""}`}
+              onClickCapture={(event) => {
+                if (!selectedIds) return;
+                event.preventDefault();
+                event.stopPropagation();
+                tapMessage(msg, event.currentTarget, event.timeStamp);
+              }}
             >
+              {selectedIds && <span className={styles.selectTick} aria-hidden="true" />}
               {msg.isDeleted ? (
                  <div className={`${styles.bubble} ${msg.from === "me" ? styles.bubbleMe : styles.bubbleBabe}`} style={{ opacity: 0.6, fontStyle: 'italic' }}>
                    <p className={styles.bubbleText}>This message was deleted</p>
                  </div>
               ) : (
                 <div 
+                  className={styles.msgHit}
                   style={{ display: 'flex', flexDirection: 'column', alignItems: msg.from === 'me' ? 'flex-end' : 'flex-start' }}
+                  onClick={(event) => tapMessage(msg, event.currentTarget, event.timeStamp)}
                   onContextMenu={(event) => {
                     event.preventDefault();
-                    openMessageMenu(msg);
+                    openMessageMenu(msg, event.currentTarget);
                   }}
                   onTouchStart={(event) => {
-                    const timer = window.setTimeout(() => openMessageMenu(msg), 450);
-                    event.currentTarget.dataset.timer = String(timer);
+                    const el = event.currentTarget;
+                    const timer = window.setTimeout(() => openMessageMenu(msg, el), 450);
+                    el.dataset.timer = String(timer);
                   }}
                   onTouchEnd={(event) => window.clearTimeout(Number(event.currentTarget.dataset.timer))}
                   onTouchMove={(event) => window.clearTimeout(Number(event.currentTarget.dataset.timer))}
@@ -976,7 +1129,7 @@ export default function ChatView({ onBack }: Props) {
       {showAttach && (
         <div className={styles.attachPanel}>
           <button className={styles.attachOption} onClick={() => fileInputRef.current?.click()}>
-            <div className={styles.attachIcon} style={{ background: "#FBBF24" }}>
+            <div className={styles.attachIcon} style={{ background: "#FF4081" }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
                 <circle cx="8.5" cy="8.5" r="1.5" />
@@ -993,6 +1146,15 @@ export default function ChatView({ onBack }: Props) {
               </svg>
             </div>
             <span>Video</span>
+          </button>
+          <button className={styles.attachOption} onClick={() => { setShowAttach(false); setShowCamera(true); }}>
+            <div className={styles.attachIcon} style={{ background: "#1a1a1a" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+            </div>
+            <span>Snap</span>
           </button>
         </div>
       )}
@@ -1062,6 +1224,19 @@ export default function ChatView({ onBack }: Props) {
                     socketRef.current?.emit("typing", e.target.value.length > 0);
                   }}
                 />
+                {!input.trim() && !editingMsgId && (
+                  <button
+                    type="button"
+                    className={styles.emojiToggle}
+                    aria-label="Open snap camera"
+                    onClick={() => { setShowCamera(true); setShowAttach(false); setShowEmoji(false); }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                  </button>
+                )}
                 <button
                   className={`${styles.emojiToggle} ${showEmoji ? styles.emojiToggleOn : ""}`}
                   aria-label={showEmoji ? "Close emojis" : "Emojis"}

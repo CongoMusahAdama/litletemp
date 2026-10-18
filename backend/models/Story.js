@@ -8,6 +8,11 @@ const storySchema = new mongoose.Schema({
   expiresAt: { type: Date, required: true },
   seenBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  reactions: [{
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    name: { type: String, maxlength: 40 },
+    emoji: { type: String, maxlength: 8 },
+  }],
   comments: [{
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     name: { type: String, maxlength: 40 },

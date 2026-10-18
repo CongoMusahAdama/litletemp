@@ -51,13 +51,13 @@
 .saveBtn {
   font-size: 15px;
   font-weight: 700;
-  color: #FBBF24;
+  color: #FF4081;
   padding: 8px 16px;
   border-radius: 100px;
   transition: background 0.2s;
   font-family: 'Sora', sans-serif;
 }
-.saveBtn:active { background: #FFF8E7; }
+.saveBtn:active { background: #FFF0F7; }
 
 /* ── Scroll area ── */
 .scrollArea {
@@ -92,7 +92,7 @@
   border-radius: 50%;
   object-fit: cover;
   display: block;
-  border: 3px solid #FBBF24;
+  border: 3px solid #FF4081;
 }
 
 .cameraBtn {
@@ -102,7 +102,7 @@
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: #FBBF24;
+  background: #FF4081;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -132,7 +132,7 @@
 }
 
 .editProfileBtn {
-  background: #FBBF24;
+  background: #FF4081;
   color: var(--text-primary);
   font-size: 14px;
   font-weight: 700;
@@ -140,7 +140,7 @@
   border-radius: 100px;
   font-family: 'Sora', sans-serif;
   transition: transform 0.15s;
-  box-shadow: 0 4px 14px rgba(251,191,36,0.3);
+  box-shadow: 0 4px 14px rgba(255, 64, 129,0.3);
 }
 .editProfileBtn:active { transform: scale(0.96); }
 
@@ -290,14 +290,14 @@
   height: 90px;
   border-radius: 50%;
   object-fit: cover;
-  border: 3px solid #FBBF24;
+  border: 3px solid #FF4081;
   margin-bottom: 12px;
 }
 
 .changePhotoBtn {
   font-size: 14px;
   font-weight: 700;
-  color: #FBBF24;
+  color: #FF4081;
   font-family: 'Sora', sans-serif;
 }
 
@@ -366,7 +366,7 @@
 .dayHero {
   padding: 28px 22px 24px;
   border-radius: 28px;
-  background: linear-gradient(180deg, #fff4c8 0%, #ffe08a 100%);
+  background: linear-gradient(180deg, #FFE4F1 0%, #FFB3D9 100%);
   text-align: center;
 }
 
@@ -378,7 +378,7 @@
   height: 64px;
   border-radius: 22px;
   background: #1a1a1a;
-  color: #ffe14a;
+  color: #FF4081;
   font-size: 30px;
 }
 
@@ -431,7 +431,7 @@
   height: 52px;
   border-radius: 100px;
   background: #1a1a1a;
-  color: #ffe14a;
+  color: #FF4081;
   font-family: "Sora", sans-serif;
   font-size: 16px;
   font-weight: 800;

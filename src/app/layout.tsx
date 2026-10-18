@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#FBBF24",
+  themeColor: "#FF4081",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -45,12 +45,12 @@ export default function RootLayout({
       <head>
         <link rel="apple-touch-icon" href="/icon.png" sizes="192x192" />
         <link rel="apple-touch-icon" href="/icon.png" sizes="512x512" />
-        <link rel="mask-icon" href="/icon.png" color="#FBBF24" />
+        <link rel="mask-icon" href="/icon.png" color="#FF4081" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Little Temptation" />
-        <meta name="theme-color" content="#FBBF24" />
-        <meta name="msapplication-TileColor" content="#FBBF24" />
+        <meta name="theme-color" content="#FF4081" />
+        <meta name="msapplication-TileColor" content="#FF4081" />
       </head>
       <body>
         <ThemeProvider>

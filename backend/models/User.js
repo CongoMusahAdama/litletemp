@@ -12,7 +12,7 @@ const userSchema = new mongoose.Schema({
   notifications: { type: Boolean, default: true },
   language: { type: String, default: 'English' },
   theme: { type: String, enum: ['light', 'dark'], default: 'light' },
-  bubbleColor: { type: String, default: '#FBBF24' },
+  bubbleColor: { type: String, default: '#FF4081' },
   pushSubscriptions: [{
     endpoint: String,
     p256dh: String,
@@ -35,7 +35,7 @@ userSchema.methods.toPublic = function toPublic() {
     notifications: this.notifications,
     language: this.language,
     theme: this.theme,
-    bubbleColor: this.bubbleColor || '#FBBF24',
+    bubbleColor: this.bubbleColor || '#FF4081',
     hasPin: Boolean(this.pinHash),
     hasPassword: Boolean(this.passwordHash),
   };

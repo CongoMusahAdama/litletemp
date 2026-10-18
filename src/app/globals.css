@@ -1,11 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-  /* Brand Colors - Yellow / White / Dark */
-  --brand: #FBBF24;          /* Primary yellow */
-  --brand-light: #FDE68A;    /* Lighter yellow */
-  --brand-dark: #F59E0B;     /* Darker yellow/orange */
-  --brand-subtle: #FFFBEB;   /* Very light yellow */
+  /* Brand Colors - Pink / White / Dark */
+  --brand: #FF4081;          /* Primary pink */
+  --brand-light: #FBCFE8;    /* Lighter pink */
+  --brand-dark: #E91E63;     /* Deeper pink */
+  --brand-subtle: #FDF2F8;   /* Very light pink */
   
   --brand-orange: #F97316;   /* Small orange accent */
 
@@ -15,7 +15,7 @@
   --bg-card: #ffffff;
   --bg-elevated: #ffffff;
   --bg-input: #F5EFE6;        /* Slightly warm grey for inputs */
-  --bg-app: #FDF8F0;
+  --bg-app: #FFF0F7;
   --bg-chat: #efeae2;
   --bg-header: rgba(255, 255, 255, 0.94);
   --bubble-in: #ffffff;

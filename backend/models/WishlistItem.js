@@ -6,6 +6,7 @@ const wishlistSchema = new mongoose.Schema({
   title: { type: String, required: true, maxlength: 120 },
   desc: { type: String, default: '', maxlength: 500 },
   emoji: { type: String, default: '🎁' },
+  images: [{ type: String }],
 }, { timestamps: true });
 
 module.exports = mongoose.model('WishlistItem', wishlistSchema);

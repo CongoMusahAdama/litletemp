@@ -5,7 +5,7 @@
   transform: translateX(-50%);
   width: min(100%, 430px);
   height: 100dvh;
-  background: #FDF8F0;
+  background: #FFF0F7;
   overflow-x: hidden;
   overflow-y: auto;
   display: flex;
@@ -45,7 +45,7 @@
 .stepActive {
   width: 16px;
   height: 4px;
-  background: var(--brand, #F59E0B);
+  background: var(--brand, #E91E63);
   border-radius: 4px;
 }
 
@@ -89,7 +89,7 @@
 }
 
 .cardMe {
-  background: #fef3c7; /* Pale Yellow */
+  background: #FCE7F3; /* Pale Pink */
 }
 
 .cardBabe {
@@ -301,7 +301,7 @@
   height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, #fff6d4 0%, #ffe7a3 46%, #ffd98a 100%);
+  background: linear-gradient(180deg, #FFE4F1 0%, #FFC9E3 46%, #FFB3D9 100%);
   z-index: 5;
   overflow: hidden;
   padding-bottom: env(safe-area-inset-bottom);
@@ -500,7 +500,7 @@
   z-index: 5;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, #fff6d4 0%, #ffe7a3 46%, #ffd98a 100%);
+  background: linear-gradient(180deg, #FFE4F1 0%, #FFC9E3 46%, #FFB3D9 100%);
   padding: calc(28px + env(safe-area-inset-top)) 22px calc(18px + env(safe-area-inset-bottom));
   overflow-y: auto;
 }
@@ -510,7 +510,7 @@
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #92400e;
+  color: #9D174D;
   margin-bottom: 8px;
 }
 
@@ -554,7 +554,7 @@
   height: 28px;
   border-radius: 50%;
   background: #1a1a1a;
-  color: #ffe14a;
+  color: #FF4081;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -604,7 +604,7 @@
 
 .introStar {
   position: absolute;
-  color: var(--brand, #F59E0B);
+  color: var(--brand, #E91E63);
   font-size: 20px;
   animation: twinkle 2s infinite alternate;
 }
@@ -664,7 +664,7 @@
 .lovelyText {
   font-size: 18px;
   font-weight: 600;
-  color: var(--brand, #F59E0B);
+  color: var(--brand, #E91E63);
   white-space: nowrap;
   letter-spacing: 0.2px;
 }
@@ -707,7 +707,7 @@
   bottom: 0;
   width: 110%;
   height: 85%;
-  background: var(--brand, #F59E0B);
+  background: var(--brand, #E91E63);
   border-radius: 55px 55px 0 0;
   display: flex;
   flex-direction: column;
@@ -783,7 +783,7 @@
   display: flex;
   flex-direction: column;
   padding: calc(18px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, #fff8df 0%, #ffe9a8 100%);
+  background: linear-gradient(180deg, #fff8df 0%, #FFD1E8 100%);
   overflow-y: auto;
 }
 
@@ -874,7 +874,7 @@
   padding: 16px;
   border-radius: 100px;
   background: #1a1a1a;
-  color: #ffe14a;
+  color: #FF4081;
   font-family: "Sora", sans-serif;
   font-size: 16px;
   font-weight: 800;
@@ -901,12 +901,12 @@
   width: 72px;
   height: 72px;
   border-radius: 50%;
-  background: var(--brand-subtle, #FFFBEB);
+  background: var(--brand-subtle, #FDF2F8);
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto 20px;
-  color: var(--brand, #F59E0B);
+  color: var(--brand, #E91E63);
 }
 .connectIcon svg { width: 32px; height: 32px; }
 
@@ -953,7 +953,7 @@
   position: relative;
   z-index: 1;
   padding: 16px;
-  background: var(--brand, #FBBF24);
+  background: var(--brand, #FF4081);
   color: #1a1a1a;
   font-size: 16px;
   font-weight: 700;
@@ -1053,7 +1053,7 @@
 .namePreview {
   margin-top: 8px;
   padding: 16px;
-  background: var(--brand-subtle, #FFFBEB);
+  background: var(--brand-subtle, #FDF2F8);
   border-radius: 16px;
   text-align: center;
   font-size: 14px;
@@ -1067,8 +1067,8 @@
   margin: 24px auto 0;
   padding: 14px 28px;
   background: transparent;
-  border: 2px solid var(--brand, #FBBF24);
-  color: var(--brand, #FBBF24);
+  border: 2px solid var(--brand, #FF4081);
+  color: var(--brand, #FF4081);
   font-size: 14px;
   font-weight: 700;
   font-family: 'Sora', sans-serif;
@@ -1076,7 +1076,7 @@
   transition: all 0.2s;
 }
 .connectBtn:active {
-  background: var(--brand-subtle, #FFFBEB);
+  background: var(--brand-subtle, #FDF2F8);
   transform: scale(0.97);
 }
 .connectBtn svg { width: 18px; height: 18px; }
@@ -1087,158 +1087,6 @@
   color: var(--text-muted);
   font-weight: 500;
   text-align: left;
-}
-
-/* ── Dark Mode ── */
-:global([data-theme="dark"]) .screen {
-  background: #0d0d0d;
-}
-
-:global([data-theme="dark"]) .welcome {
-  background: linear-gradient(180deg, #1a1500 0%, #2a1f00 46%, #1a1500 100%);
-}
-
-:global([data-theme="dark"]) .welcomeTitle,
-:global([data-theme="dark"]) .titlePick,
-:global([data-theme="dark"]) .codeTitle {
-  color: #f5f5f5;
-}
-
-:global([data-theme="dark"]) .welcomeText,
-:global([data-theme="dark"]) .subtitlePick,
-:global([data-theme="dark"]) .guideLead {
-  color: #a0a0a0;
-}
-
-:global([data-theme="dark"]) .nameLabel {
-  color: #f0f0f0;
-}
-
-:global([data-theme="dark"]) .nameInput {
-  background: #1e1e1e;
-  color: #f5f5f5;
-  border-color: #333;
-}
-:global([data-theme="dark"]) .nameInput::placeholder { color: #666; }
-:global([data-theme="dark"]) .nameInput:focus { border-color: var(--brand); }
-
-:global([data-theme="dark"]) .namePreview {
-  background: #1e1e1e;
-  color: #a0a0a0;
-}
-:global([data-theme="dark"]) .namePreview strong { color: #f5f5f5; }
-
-:global([data-theme="dark"]) .backBtn {
-  color: #999;
-}
-:global([data-theme="dark"]) .backBtn:active {
-  background: #1e1e1e;
-  color: #f0f0f0;
-}
-
-:global([data-theme="dark"]) .key {
-  background: #1e1e1e;
-  color: #f5f5f5;
-}
-:global([data-theme="dark"]) .key:active {
-  background: #2a2a2a;
-}
-
-:global([data-theme="dark"]) .memory {
-  background: #1e1e1e;
-  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.3);
-}
-
-:global([data-theme="dark"]) .bubble {
-  background: #2a2a2a;
-  border-color: #f5f5f5;
-}
-
-:global([data-theme="dark"]) .memoryLabel {
-  color: #ccc;
-}
-
-:global([data-theme="dark"]) .welcomeNext {
-  background: #1a1a1a;
-  color: #fff6d4;
-}
-
-:global([data-theme="dark"]) .welcome {
-  background: linear-gradient(180deg, #fff6d4 0%, #ffe14a 46%, #ffd98a 100%);
-  color: #1a1a1a;
-}
-
-:global([data-theme="dark"]) .welcomeTitle,
-:global([data-theme="dark"]) .welcomeText,
-:global([data-theme="dark"]) .memoryLabel,
-:global([data-theme="dark"]) .guideTitle,
-:global([data-theme="dark"]) .guideLead,
-:global([data-theme="dark"]) .guideSteps li,
-:global([data-theme="dark"]) .guideSteps p {
-  color: #1a1a1a;
-}
-
-:global([data-theme="dark"]) .memory {
-  background: #fff;
-  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.08);
-}
-
-:global([data-theme="dark"]) .bubble {
-  background: #fff6d4;
-  border-color: #1a1a1a;
-}
-
-:global([data-theme="dark"]) .guide {
-  background: linear-gradient(180deg, #fff6d4 0%, #ffe7a3 46%, #ffd98a 100%);
-  color: #1a1a1a;
-}
-
-:global([data-theme="dark"]) .guideSteps span {
-  background: #1a1a1a;
-  color: #fff6d4;
-}
-
-:global([data-theme="dark"]) .pickCard {
-  background: #1e1e1e;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-}
-:global([data-theme="dark"]) .cardInfo h3 { color: #f5f5f5; }
-:global([data-theme="dark"]) .cardInfo p { color: #a0a0a0; }
-
-:global([data-theme="dark"]) .guideKicker {
-  color: #92400e;
-}
-:global([data-theme="dark"]) .guideTitle,
-:global([data-theme="dark"]) .guideLead,
-:global([data-theme="dark"]) .guideSteps li,
-:global([data-theme="dark"]) .guideSteps p {
-  color: #1a1a1a;
-}
-:global([data-theme="dark"]) .guideSteps span {
-  background: #1a1a1a;
-  color: #fff6d4;
-}
-:global([data-theme="dark"]) .guide {
-  background: linear-gradient(180deg, #fff6d4 0%, #ffe7a3 46%, #ffd98a 100%);
-}
-
-:global([data-theme="dark"]) .codeScreen {
-  background: #0d0d0d;
-}
-:global([data-theme="dark"]) .codeLead,
-:global([data-theme="dark"]) .codeKicker {
-  color: #a0a0a0;
-}
-:global([data-theme="dark"]) .codeWait {
-  color: #999;
-}
-
-:global([data-theme="dark"]) .connectScreen {
-  background: #0d0d0d;
-}
-
-:global([data-theme="dark"]) .namesScreen {
-  background: transparent;
 }
 
 @media (max-height: 700px) {
@@ -1252,4 +1100,178 @@
 @media (max-width: 360px) {
   .memory { width: 112px; height: 132px; }
   .codeTitle { font-size: 28px; }
+}
+
+/* ── Sign in (mood-faces style) ── */
+.signIn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin: -28px -24px calc(-28px - env(safe-area-inset-bottom));
+  min-height: 100dvh;
+  background: #FFF0F7;
+  animation: fadeIn 0.4s ease;
+}
+
+.signInFaces { flex-shrink: 0; }
+
+.signInBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 4px 24px 0;
+}
+
+.signInTitle {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+  color: #111;
+  margin: 0 0 12px;
+}
+
+.signInSub {
+  font-size: 15px;
+  line-height: 1.5;
+  color: #8a8d91;
+  max-width: 270px;
+  margin: 0 0 24px;
+}
+
+.signInForm {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.signInInput {
+  width: 100%;
+  height: 56px;
+  border: 1.5px solid #F9D2E5;
+  border-radius: 18px;
+  padding: 0 18px;
+  background: #ffffff;
+  font-family: 'Sora', sans-serif;
+  font-size: 16px;
+  color: #111;
+  outline: none;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.signInInput::placeholder { color: #a3a3a3; }
+.signInInput:focus { border-color: #FF4081; background: #fff; }
+
+.signInActions {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 24px 24px calc(20px + env(safe-area-inset-bottom));
+}
+
+.signInBtn {
+  width: 100%;
+  height: 58px;
+  border: 0;
+  border-radius: 100px;
+  background: #111;
+  color: #fff;
+  font-family: 'Sora', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.2s ease;
+}
+.signInBtn svg { width: 20px; height: 20px; }
+.signInBtn:active { transform: scale(0.97); }
+.signInBtn:disabled { opacity: 0.45; cursor: default; }
+
+.signInLink {
+  border: 0;
+  background: transparent;
+  color: #6b7280;
+  font-family: 'Sora', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 16px;
+  cursor: pointer;
+}
+
+.spinnerLight {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* ── Pairing illustration on the "Connect to your partner" screen ── */
+.pairArt {
+  position: relative;
+  height: min(250px, 34dvh);
+  flex-shrink: 0;
+  margin: -28px -24px 4px;
+  padding-top: env(safe-area-inset-top);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: hidden;
+  /* Let the arms melt into the page instead of ending in a hard line. */
+  -webkit-mask-image: linear-gradient(180deg, #000 70%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 70%, transparent 100%);
+}
+
+.pairArtImg {
+  display: block;
+  width: auto;
+  height: 112%;
+  max-width: none;
+  object-fit: contain;
+  object-position: center top;
+  transform-origin: 50% 100%;
+  animation:
+    pairRise 0.9s cubic-bezier(0.22, 1.2, 0.36, 1) both,
+    pairBreathe 4.5s ease-in-out 1s infinite;
+}
+
+@keyframes pairRise {
+  from { opacity: 0; transform: translateY(60px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes pairBreathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-6px) scale(1.01); }
+}
+
+.pairFloat {
+  position: absolute;
+  color: #FF4081;
+  opacity: 0;
+  pointer-events: none;
+  animation: pairHeart 3.6s ease-in-out infinite;
+  text-shadow: 0 4px 10px rgba(255, 64, 129, 0.25);
+}
+.pairFloatA { left: 16%; bottom: 52%; font-size: 16px; animation-delay: 1.2s; }
+.pairFloatB { left: 48%; bottom: 70%; font-size: 22px; animation-delay: 2.1s; }
+.pairFloatC { right: 14%; bottom: 50%; font-size: 14px; animation-delay: 2.9s; }
+
+@keyframes pairHeart {
+  0% { opacity: 0; transform: translateY(10px) scale(0.6); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-60px) scale(1.1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pairArtImg { animation: none; }
+  .pairFloat { display: none; }
 }

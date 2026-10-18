@@ -6,7 +6,7 @@ const journalEntrySchema = new mongoose.Schema({
   title: { type: String, required: true, maxlength: 120 },
   text: { type: String, default: '', maxlength: 8000 },
   mood: { type: String, default: 'Happy' },
-  color: { type: String, default: '#FBBF24' },
+  color: { type: String, default: '#FF4081' },
   textColor: { type: String, default: '#1a1a1a' },
   favorite: { type: Boolean, default: false },
   media: [{

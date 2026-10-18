@@ -3,6 +3,9 @@ const Story = require('../models/Story');
 const { requireAuth, requireCouple } = require('../middleware/auth');
 const { getIo } = require('../socket');
 const { publicMedia, bareUpload } = require('../lib/present');
+const { saveMessage } = require('../lib/messages');
+
+const REACTIONS = ['❤️', '😍', '😂', '😮', '😢', '🔥'];
 
 const router = express.Router();
 router.use(requireAuth, requireCouple);
@@ -18,6 +21,12 @@ function present(story, viewerId) {
     seen: story.seenBy.some((id) => String(id) === me),
     liked: (story.likes || []).some((id) => String(id) === me),
     likeCount: (story.likes || []).length,
+    reactions: (story.reactions || []).map((reaction) => ({
+      emoji: reaction.emoji,
+      name: reaction.name || '',
+      mine: String(reaction.userId) === me,
+    })),
+    myReaction: (story.reactions || []).find((reaction) => String(reaction.userId) === me)?.emoji || '',
     comments: (story.comments || []).map((comment) => ({
       id: comment._id,
       name: comment.name || '',
@@ -32,6 +41,12 @@ function pushStory(req, story) {
   const io = getIo();
   if (io) io.to(`couple:${req.couple._id}`).emit('story:updated', payload);
   return payload;
+}
+
+// Replies to the partner's story also land in the chat, so the author actually sees them.
+function tellAuthor(req, story, text) {
+  if (String(story.authorId) === String(req.user._id)) return;
+  saveMessage(req.user, req.couple, { type: 'text', text }).catch(() => undefined);
 }
 
 router.get('/', async (req, res, next) => {
@@ -108,7 +123,27 @@ router.post('/:id/comments', async (req, res, next) => {
       text,
     });
     await story.save();
+    tellAuthor(req, story, `Replied to your story: "${text}"`);
     res.status(201).json(pushStory(req, story));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/:id/react', async (req, res, next) => {
+  try {
+    const emoji = String(req.body.emoji || '');
+    if (!REACTIONS.includes(emoji)) return res.status(400).json({ error: 'Pick a reaction' });
+    const story = await Story.findOne({ _id: req.params.id, coupleId: req.couple._id, expiresAt: { $gt: new Date() } });
+    if (!story) return res.status(404).json({ error: 'Story not found' });
+    const me = String(req.user._id);
+    const previous = (story.reactions || []).find((reaction) => String(reaction.userId) === me);
+    story.reactions = (story.reactions || []).filter((reaction) => String(reaction.userId) !== me);
+    const added = !previous || previous.emoji !== emoji;
+    if (added) story.reactions.push({ userId: req.user._id, name: req.user.username || req.user.name, emoji });
+    await story.save();
+    if (added) tellAuthor(req, story, `Reacted ${emoji} to your story`);
+    res.json(pushStory(req, story));
   } catch (error) {
     next(error);
   }

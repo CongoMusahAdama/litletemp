@@ -178,7 +178,7 @@
 .moodOption:active { transform: scale(0.93); }
 
 .moodOptionActive {
-  border-color: var(--mc, #FBBF24);
+  border-color: var(--mc, #FF4081);
   box-shadow: 0 4px 16px rgba(0,0,0,0.08);
 }
 
@@ -325,7 +325,7 @@
 .streakNum {
   font-size: 32px;
   font-weight: 800;
-  color: #FBBF24;
+  color: #FF4081;
   line-height: 1;
 }
 

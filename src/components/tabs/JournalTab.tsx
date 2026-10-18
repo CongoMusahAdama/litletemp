@@ -8,6 +8,7 @@ import { API_URL, api, getToken, mediaUrl, uploadFile } from "@/lib/api";
 interface Entry {
   id: string;
   title: string;
+  text: string;
   color: string;
   textColor: string;
   date: string;
@@ -35,10 +36,21 @@ interface WishlistItem {
   title: string;
   desc: string;
   emoji: string;
+  images: string[];
 }
 
 interface Props {
   triggerNewEntry?: number;
+}
+
+function formatWish(row: WishlistItem): WishlistItem {
+  return { ...row, id: String(row.id), images: (row.images || []).map(mediaUrl) };
+}
+
+async function uploadImages(files: FileList | null) {
+  const picked = Array.from(files || []).filter((file) => file.type.startsWith("image/"));
+  const saved = await Promise.all(picked.map((file) => uploadFile(file)));
+  return saved.map((item) => item.url);
 }
 
 function formatEntry(row: ServerEntry): Entry {
@@ -64,6 +76,16 @@ export default function JournalTab({ triggerNewEntry }: Props) {
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
   const [newWishTitle, setNewWishTitle] = useState("");
   const [newWishDesc, setNewWishDesc] = useState("");
+  const [newWishImages, setNewWishImages] = useState<string[]>([]);
+  const [wishUploading, setWishUploading] = useState(false);
+  const wishFileRef = useRef<HTMLInputElement>(null);
+  const wishMoreRef = useRef<HTMLInputElement>(null);
+
+  // Detail views
+  const [openEntryId, setOpenEntryId] = useState<string | null>(null);
+  const [openWishId, setOpenWishId] = useState<string | null>(null);
+  const openEntry = entries.find((entry) => entry.id === openEntryId) || null;
+  const openWish = wishlist.find((item) => item.id === openWishId) || null;
 
   useEffect(() => {
     if (triggerNewEntry && triggerNewEntry > 0) {
@@ -76,7 +98,7 @@ export default function JournalTab({ triggerNewEntry }: Props) {
       .then((rows) => setEntries(rows.map(formatEntry)))
       .catch(() => undefined);
     api<WishlistItem[]>("/api/wishlist")
-      .then((rows) => setWishlist(rows.map((row) => ({ ...row, id: String(row.id) }))))
+      .then((rows) => setWishlist(rows.map(formatWish)))
       .catch(() => undefined);
 
     const socket = io(API_URL, { auth: { token: getToken() } });
@@ -89,7 +111,14 @@ export default function JournalTab({ triggerNewEntry }: Props) {
       setEntries((prev) => prev.map((entry) => entry.id === formatted.id ? formatted : entry));
     });
     socket.on("wishlist:new", (item: WishlistItem) => {
-      setWishlist((prev) => [{ ...item, id: String(item.id) }, ...prev.filter((w) => w.id !== String(item.id))]);
+      setWishlist((prev) => [formatWish(item), ...prev.filter((w) => w.id !== String(item.id))]);
+    });
+    socket.on("wishlist:updated", (item: WishlistItem) => {
+      const formatted = formatWish(item);
+      setWishlist((prev) => prev.map((w) => w.id === formatted.id ? formatted : w));
+    });
+    socket.on("journal:deleted", ({ id }: { id: string }) => {
+      setEntries((prev) => prev.filter((e) => e.id !== String(id)));
     });
     socket.on("wishlist:deleted", ({ id }: { id: string }) => {
       setWishlist((prev) => prev.filter((w) => w.id !== String(id)));
@@ -126,7 +155,7 @@ export default function JournalTab({ triggerNewEntry }: Props) {
         body: JSON.stringify({
           title: newTitle,
           text: newBody,
-          color: firstMediaUrl ? "#1a1a1a" : "#FBBF24",
+          color: firstMediaUrl ? "#1a1a1a" : "#FF4081",
           textColor: firstMediaUrl ? "#ffffff" : "#1a1a1a",
           media: newMedia,
         }),
@@ -146,14 +175,63 @@ export default function JournalTab({ triggerNewEntry }: Props) {
     try {
       const item = await api<WishlistItem>("/api/wishlist", {
         method: "POST",
-        body: JSON.stringify({ title: newWishTitle, desc: newWishDesc }),
+        body: JSON.stringify({ title: newWishTitle, desc: newWishDesc, images: newWishImages }),
       });
-      setWishlist([{ ...item, id: String(item.id) }, ...wishlist]);
+      const formatted = formatWish(item);
+      setWishlist((prev) => [formatted, ...prev.filter((w) => w.id !== formatted.id)]);
       setNewWishTitle("");
       setNewWishDesc("");
+      setNewWishImages([]);
     } catch {
       // Keep the typed wish so it can be retried.
     }
+  };
+
+  const pickWishImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    setWishUploading(true);
+    try {
+      const urls = await uploadImages(files);
+      setNewWishImages((prev) => [...prev, ...urls].slice(0, 8));
+    } catch {
+      // Upload failed; the wish can still be saved without it.
+    } finally {
+      e.target.value = "";
+      setWishUploading(false);
+    }
+  };
+
+  const saveWishImages = async (wish: WishlistItem, images: string[]) => {
+    const saved = await api<WishlistItem>(`/api/wishlist/${wish.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ images }),
+    }).catch(() => null);
+    if (!saved) return;
+    const formatted = formatWish(saved);
+    setWishlist((prev) => prev.map((w) => w.id === formatted.id ? formatted : w));
+  };
+
+  const addImagesToWish = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!openWish) return;
+    const wish = openWish;
+    const files = e.target.files;
+    setWishUploading(true);
+    try {
+      const urls = await uploadImages(files);
+      if (urls.length) await saveWishImages(wish, [...wish.images, ...urls].slice(0, 8));
+    } catch {
+      // Leave the wish as it was.
+    } finally {
+      e.target.value = "";
+      setWishUploading(false);
+    }
+  };
+
+  const deleteWish = async (wish: WishlistItem) => {
+    const ok = await api(`/api/wishlist/${wish.id}`, { method: "DELETE" }).then(() => true).catch(() => false);
+    if (!ok) return;
+    setWishlist((prev) => prev.filter((w) => w.id !== wish.id));
+    setOpenWishId(null);
   };
 
   const toggleFavorite = async (entry: Entry) => {
@@ -317,6 +395,93 @@ export default function JournalTab({ triggerNewEntry }: Props) {
         </div>
       )}
 
+      {/* Journal Entry Detail */}
+      {openEntry && (
+        <div className={styles.modalOverlay} onClick={() => setOpenEntryId(null)}>
+          <div className={`${styles.modal} ${styles.detailModal}`} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <span className={styles.detailDate}>{openEntry.date}</span>
+              <div className={styles.detailActions}>
+                <button type="button" className={styles.detailHeart} onClick={() => void toggleFavorite(openEntry)} aria-label="Save memory">
+                  {openEntry.favorite ? "♥" : "♡"}
+                </button>
+                <button className={styles.modalClose} onClick={() => setOpenEntryId(null)} aria-label="Close">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <h2 className={styles.detailTitle}>{openEntry.title}</h2>
+            {openEntry.text
+              ? <p className={styles.detailText}>{openEntry.text}</p>
+              : !openEntry.media?.length && <p className={styles.emptyNote}>No words in this one, just the title.</p>}
+            {!!openEntry.media?.length && (
+              <div className={styles.detailMedia}>
+                {openEntry.media.map((m, idx) => (
+                  m.type === "image" ? <img key={idx} src={m.url} alt="" />
+                  : m.type === "video" ? <video key={idx} src={m.url} controls playsInline />
+                  : <audio key={idx} src={m.url} controls />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Wishlist Detail */}
+      {openWish && (
+        <div className={styles.modalOverlay} onClick={() => setOpenWishId(null)}>
+          <div className={`${styles.modal} ${styles.detailModal}`} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <span className={styles.detailEmoji}>{openWish.emoji}</span>
+              <button className={styles.modalClose} onClick={() => setOpenWishId(null)} aria-label="Close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+              </button>
+            </div>
+            <h2 className={styles.detailTitle}>{openWish.title}</h2>
+            {openWish.desc
+              ? <p className={styles.detailText}>{openWish.desc}</p>
+              : <p className={styles.emptyNote}>No details yet.</p>}
+            {openWish.images.length > 0 && (
+              <div className={styles.detailMedia}>
+                {openWish.images.map((url, idx) => (
+                  <div key={url} className={styles.detailImageWrap}>
+                    <img src={url} alt="" />
+                    <button
+                      type="button"
+                      className={styles.detailImageRemove}
+                      onClick={() => void saveWishImages(openWish, openWish.images.filter((_, i) => i !== idx))}
+                      aria-label="Remove photo"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <input ref={wishMoreRef} type="file" accept="image/*" multiple onChange={addImagesToWish} style={{ display: "none" }} />
+            <div className={styles.detailFooter}>
+              <button
+                type="button"
+                className={styles.photoUploadBtn}
+                onClick={() => wishMoreRef.current?.click()}
+                disabled={wishUploading || openWish.images.length >= 8}
+              >
+                {wishUploading ? "Uploading..." : "Add photos"}
+              </button>
+              <button type="button" className={styles.detailDelete} onClick={() => void deleteWish(openWish)}>
+                Remove wish
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className={styles.header}>
         <h1 className={styles.title}>Love Journal</h1>
         <button className={styles.iconBtn} onClick={() => setShowNewEntry(true)}>
@@ -360,27 +525,51 @@ export default function JournalTab({ triggerNewEntry }: Props) {
                   value={newWishDesc}
                   onChange={e => setNewWishDesc(e.target.value)}
                 />
-                <button className={styles.wishlistSubmit} onClick={handleAddWish}>Add Wish</button>
+                <input ref={wishFileRef} type="file" accept="image/*" multiple onChange={pickWishImages} style={{ display: "none" }} />
+                <div className={styles.wishImagesRow}>
+                  {newWishImages.map((url, idx) => (
+                    <div key={url} className={styles.photoPreview}>
+                      <img src={mediaUrl(url)} alt="" />
+                      <button
+                        type="button"
+                        className={styles.photoRemove}
+                        onClick={() => setNewWishImages((prev) => prev.filter((_, i) => i !== idx))}
+                        aria-label="Remove photo"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                      </button>
+                    </div>
+                  ))}
+                  {newWishImages.length < 8 && (
+                    <button type="button" className={styles.wishAddPhoto} onClick={() => wishFileRef.current?.click()} disabled={wishUploading}>
+                      {wishUploading ? "Uploading..." : "+ Add photos"}
+                    </button>
+                  )}
+                </div>
+                <button className={styles.wishlistSubmit} onClick={handleAddWish} disabled={wishUploading}>Add Wish</button>
               </div>
             </div>
 
             {wishlist.map(item => (
-              <div key={item.id} className={styles.wishlistItem}>
+              <button type="button" key={item.id} className={styles.wishlistItem} onClick={() => setOpenWishId(item.id)}>
                 <div className={styles.wishlistContent}>
                   <h4 className={styles.wishlistTitle}>{item.title}</h4>
                   {item.desc && <p className={styles.wishlistDesc}>{item.desc}</p>}
+                  {item.images.length > 1 && <span className={styles.wishlistCount}>{item.images.length} photos</span>}
                 </div>
                 <div className={styles.wishlistImage}>
-                  {item.emoji}
+                  {item.images[0] ? <img src={item.images[0]} alt="" /> : item.emoji}
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         ) : isPhotosView ? (
           <div className={styles.photoGrid}>
             {allPhotoEntries.length === 0 && <p className={styles.emptyNote}>No photos yet. Add one from a new journal entry.</p>}
             {allPhotoEntries.map((entry) => (
-              <div key={entry.id} className={styles.photoItem}>
+              <div key={entry.id} className={styles.photoItem} onClick={() => setOpenEntryId(entry.id)}>
                 <img src={entry.image} alt={entry.title} />
                 <div className={styles.photoOverlay}>
                   <span className={styles.photoDate}>{entry.date}</span>
@@ -405,7 +594,7 @@ export default function JournalTab({ triggerNewEntry }: Props) {
               const audio = entry.media?.find((item) => item.type === "audio");
               return (
                 <div key={entry.id} className={styles.card} style={{ background: "var(--bg-card)", color: "var(--text-primary)", border: "1px solid var(--border)" }}>
-                  <h3 className={styles.cardTitle}>{entry.title}</h3>
+                  <h3 className={styles.cardTitle} onClick={() => setOpenEntryId(entry.id)}>{entry.title}</h3>
                   {audio && <audio src={audio.url} controls style={{ width: "100%", marginTop: 12 }} />}
                 </div>
               );
@@ -433,6 +622,7 @@ export default function JournalTab({ triggerNewEntry }: Props) {
               <div
                 key={entry.id}
                 className={styles.card}
+                onClick={() => setOpenEntryId(entry.id)}
                 style={{
                   backgroundColor: entry.color,
                   color: entry.textColor,
@@ -463,7 +653,7 @@ export default function JournalTab({ triggerNewEntry }: Props) {
                   }}>
                     {entry.date}
                   </div>
-                  <button type="button" className={styles.heartBtn} onClick={() => void toggleFavorite(entry)} aria-label="Save memory">
+                  <button type="button" className={styles.heartBtn} onClick={(e) => { e.stopPropagation(); void toggleFavorite(entry); }} aria-label="Save memory">
                     {entry.favorite ? "♥" : "♡"}
                   </button>
                 </div>

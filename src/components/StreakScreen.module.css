@@ -1,0 +1,185 @@
+.screen {
+  position: absolute;
+  inset: 0;
+  z-index: 90;
+  background: #ffffff;
+  color: #1a1a1a;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  font-family: 'Sora', sans-serif;
+  animation: rise 0.3s cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+
+@keyframes rise {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.close {
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top));
+  left: 12px;
+  z-index: 3;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  color: #1a1a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+.close svg { width: 20px; height: 20px; }
+
+.body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0 24px;
+}
+
+.flame {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 100px;
+  background: #ffedd5;
+  color: #c2410c;
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+.flameHot { animation: pulse 1.2s ease infinite; background: #fee2e2; color: #b91c1c; }
+.flameCold { background: #e5e7eb; color: #6b7280; }
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+.title {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+  margin: 0 0 10px;
+}
+
+.subtitle {
+  font-size: 15px;
+  line-height: 1.5;
+  color: #8a8d91;
+  max-width: 280px;
+  margin: 0 0 22px;
+}
+
+.levelCard {
+  width: 100%;
+  background: #fafafa;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 22px;
+  padding: 16px;
+  text-align: left;
+}
+
+.levelHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+
+.levelNext { color: #8a8d91; font-weight: 600; }
+
+.levelBar {
+  height: 10px;
+  border-radius: 10px;
+  background: #ececec;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.levelFill {
+  height: 100%;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #FBD24E, #F07142, #EF5A3C);
+  transition: width 0.5s ease;
+}
+
+.levelRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.levelDot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+.levelDot span {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+.levelDot small { font-size: 10px; font-weight: 700; color: #6b7280; }
+.levelDotOn { opacity: 1; filter: none; }
+
+.actions {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 20px 24px calc(20px + env(safe-area-inset-bottom));
+}
+
+.cta {
+  width: 100%;
+  height: 58px;
+  border: 0;
+  border-radius: 100px;
+  background: #111;
+  color: #fff;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.cta:active { transform: scale(0.97); }
+.cta svg { width: 20px; height: 20px; }
+
+.secondary {
+  border: 0;
+  background: transparent;
+  color: #6b7280;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 16px;
+  cursor: pointer;
+}
