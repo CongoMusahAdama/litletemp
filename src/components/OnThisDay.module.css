@@ -100,7 +100,7 @@
 .viewer {
   position: fixed;
   inset: 0;
-  z-index: 1100;
+  z-index: 3000;
   background: rgba(0, 0, 0, 0.55);
   display: flex;
   align-items: center;

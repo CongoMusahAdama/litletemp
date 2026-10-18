@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import styles from "./DailyQuestion.module.css";
 import { api } from "@/lib/api";
 import type { Daily } from "@/hooks/useDaily";
@@ -42,7 +43,8 @@ export default function DailyQuestion({ daily, partnerName, onAnswer, onClose }:
     if (!history) api<Daily[]>("/api/daily/history").then(setHistory).catch(() => setHistory([]));
   };
 
-  return (
+  // Rendered on <body> so the bottom menu and page layout can never cover it.
+  return createPortal(
     <div className={styles.scrim} onClick={onClose}>
       <div className={styles.sheet} onClick={(event) => event.stopPropagation()}>
         <div className={styles.grip} />
@@ -115,6 +117,7 @@ export default function DailyQuestion({ daily, partnerName, onAnswer, onClose }:
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

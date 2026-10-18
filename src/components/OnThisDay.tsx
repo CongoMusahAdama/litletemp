@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import styles from "./OnThisDay.module.css";
 import { api, mediaUrl } from "@/lib/api";
 
@@ -68,7 +69,7 @@ export default function OnThisDay() {
         </div>
       )}
 
-      {open && (
+      {open && createPortal(
         <div className={styles.viewer} onClick={() => setOpen(null)}>
           <div className={styles.viewerCard} onClick={(event) => event.stopPropagation()}>
             <span className={styles.viewerLabel}>{KIND_ICON[open.kind]} {open.label}</span>
@@ -82,7 +83,8 @@ export default function OnThisDay() {
             </p>
             <button type="button" className={styles.viewerClose} onClick={() => setOpen(null)}>Close</button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </section>
   );
