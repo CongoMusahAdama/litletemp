@@ -11,6 +11,9 @@ import { showHomeBadge } from "@/lib/badge";
 import { noteAudio, playMessageNote, playSendTick } from "@/lib/note";
 import StreakScreen from "./StreakScreen";
 import SnapCamera from "./SnapCamera";
+import DailyQuestion from "./DailyQuestion";
+import { sendNudge } from "./HeartBurst";
+import { useDaily } from "@/hooks/useDaily";
 
 interface Props {
   onBack: () => void;
@@ -108,6 +111,8 @@ export default function ChatView({ onBack }: Props) {
   const [showEmoji, setShowEmoji] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
   const call = useCoupleCall(socket);
+  const [swapVideos, setSwapVideos] = useState(false);
+  const [callChrome, setCallChrome] = useState(true);
 
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -124,6 +129,8 @@ export default function ChatView({ onBack }: Props) {
   const [showStreak, setShowStreak] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const { daily, answer: answerDaily } = useDaily();
+  const [showDaily, setShowDaily] = useState(false);
   const lastTap = useRef<{ id: string; at: number }>({ id: "", at: 0 });
   const [replyingToMsg, setReplyingToMsg] = useState<Message | null>(null);
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
@@ -538,11 +545,18 @@ export default function ChatView({ onBack }: Props) {
     }
   };
 
-  const sendSnap = async (file: File, viewOnce: boolean) => {
-    const uploaded = await uploadFile(file);
-    socketRef.current?.emit("message:send", { type: "image", mediaUrl: uploaded.url, viewOnce });
-    setStreakNote("Snap sent 🔥");
+  const bestStreak = Math.max(couple?.bestStreak || 0, couple?.currentStreak || 0, streak);
+
+  const nudgePartner = async () => {
+    navigator.vibrate?.(40);
+    try {
+      await sendNudge();
+      setStreakNote(`💗 ${chatTitle} will feel that`);
+    } catch (error) {
+      setStreakNote(error instanceof Error ? error.message : "Could not send that");
+    }
   };
+
 
   const handleDeleteMessage = (id: string) => {
     setContextMenu(null);
@@ -594,105 +608,124 @@ export default function ChatView({ onBack }: Props) {
     <div ref={rootRef} className={styles.chatView}>
       
       {/* ── Call Overlay ── */}
-      {call.phase !== "idle" && (
-        <div className={`${styles.callOverlay} ${call.callType === "video" ? styles.callOverlayVideo : ""}`}>
-          <audio ref={call.remoteAudioRef} autoPlay playsInline />
-          {call.callType === "video" && (
-            <>
-              <video ref={call.remoteVideoRef} className={styles.remoteVideo} autoPlay playsInline />
-              <video ref={call.localVideoRef} className={styles.localVideo} autoPlay playsInline muted />
-            </>
-          )}
-
-          <div className={styles.callHeader}>
-            {call.callType === "voice" && (
-              <img
-                src={partner?.avatarUrl ? mediaUrl(partner.avatarUrl) : `https://ui-avatars.com/api/?name=${encodeURIComponent(chatTitle)}&background=F97316&color=fff&size=200`}
-                alt=""
-                className={styles.callAvatar}
-              />
+      {call.phase !== "idle" && (() => {
+        const isVideo = call.callType === "video";
+        const connected = call.phase === "connected";
+        const localBig = isVideo && (!connected || swapVideos);
+        const clock = `${String(Math.floor(call.seconds / 60)).padStart(2, "0")}:${String(call.seconds % 60).padStart(2, "0")}`;
+        const status = call.phase === "incoming"
+          ? (isVideo ? "Incoming video call" : "Incoming voice call")
+          : call.phase === "calling" ? "Ringing…" : clock;
+        const avatar = partner?.avatarUrl ? mediaUrl(partner.avatarUrl) : `https://ui-avatars.com/api/?name=${encodeURIComponent(chatTitle)}&background=FF4081&color=fff&size=200`;
+        const micIcon = call.muted ? (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="1" y1="1" x2="23" y2="23" /><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" /><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg>
+        ) : (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg>
+        );
+        const speakerIcon = call.speakerOn ? (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></svg>
+        ) : (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" /></svg>
+        );
+        const hangIcon = (
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1 0-1.41C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 0 0-2.67-1.85.996.996 0 0 1-.56-.9v-3.1A15.9 15.9 0 0 0 12 9z" /></svg>
+        );
+        return (
+          <div
+            className={`${styles.callOverlay} ${isVideo ? styles.callOverlayVideo : ""} ${isVideo && connected && !callChrome ? styles.callChromeHidden : ""}`}
+            onClick={() => { if (isVideo && connected) setCallChrome((value) => !value); }}
+          >
+            <audio ref={call.remoteAudioRef} autoPlay playsInline />
+            {isVideo && (
+              <>
+                <video
+                  ref={call.remoteVideoRef}
+                  className={localBig ? styles.pipVideo : styles.stageVideo}
+                  autoPlay
+                  playsInline
+                  onClick={(event) => { if (localBig && connected) { event.stopPropagation(); setSwapVideos(false); } }}
+                />
+                <video
+                  ref={call.localVideoRef}
+                  className={`${localBig ? styles.stageVideo : styles.pipVideo} ${call.facing === "user" ? styles.mirrorVideo : ""} ${!call.cameraOn ? styles.videoOff : ""}`}
+                  autoPlay
+                  playsInline
+                  muted
+                  onClick={(event) => { if (!localBig && connected) { event.stopPropagation(); setSwapVideos(true); } }}
+                />
+                <div className={styles.callShade} />
+              </>
             )}
-            <h2 className={styles.callName}>{chatTitle}</h2>
-            <p className={styles.callStatus}>
-              {call.phase === "incoming"
-                ? (call.callType === "video" ? "Incoming video call" : "Incoming voice call")
-                : call.phase === "calling"
-                  ? "Ringing..."
-                  : `${String(Math.floor(call.seconds / 60)).padStart(2, "0")}:${String(call.seconds % 60).padStart(2, "0")}`}
-            </p>
-          </div>
 
-          {call.phase === "incoming" ? (
-            <div className={styles.callControls}>
-              <button className={`${styles.controlBtn} ${styles.endCallBtn}`} onClick={call.decline} aria-label="Decline">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91" />
-                  <line x1="23" y1="1" x2="1" y2="23" />
-                </svg>
-              </button>
-              <button className={`${styles.controlBtn} ${styles.acceptCallBtn}`} onClick={call.accept} aria-label="Accept">
-                {call.callType === "video" ? (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="23 7 16 12 23 17 23 7" />
-                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.85A16 16 0 0 0 16 17.09l.1-.1a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-                  </svg>
-                )}
-              </button>
-            </div>
-          ) : (
-            <div className={styles.callControls}>
-              <button
-                className={`${styles.controlBtn} ${call.muted ? styles.controlBtnActive : ""}`}
-                onClick={call.toggleMute}
-                aria-label={call.muted ? "Unmute" : "Mute"}
-              >
-                {call.muted ? (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="1" y1="1" x2="23" y2="23" />
-                    <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" />
-                    <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23" />
-                    <line x1="12" y1="19" x2="12" y2="23" />
-                    <line x1="8" y1="23" x2="16" y2="23" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                    <line x1="12" y1="19" x2="12" y2="23" />
-                    <line x1="8" y1="23" x2="16" y2="23" />
-                  </svg>
-                )}
-              </button>
-
-              <button className={`${styles.controlBtn} ${styles.endCallBtn}`} onClick={call.hangup} aria-label="End call">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91" />
-                  <line x1="23" y1="1" x2="1" y2="23" />
-                </svg>
-              </button>
-
-              {call.callType === "video" ? (
+            {isVideo && call.phase !== "incoming" ? (
+              <div className={styles.videoTopBar}>
+                <span className={styles.videoTopSpacer} />
+                <div className={styles.videoTitle}>
+                  <strong>{chatTitle}</strong>
+                  <span>{call.phase === "calling" ? "Ringing…" : "Video call"}</span>
+                </div>
                 <button
-                  className={`${styles.controlBtn} ${call.cameraOn ? "" : styles.controlBtnActive}`}
-                  onClick={call.toggleCamera}
-                  aria-label={call.cameraOn ? "Turn camera off" : "Turn camera on"}
+                  type="button"
+                  className={styles.videoTopBtn}
+                  onClick={(event) => { event.stopPropagation(); void call.switchCamera(); }}
+                  aria-label="Switch camera"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M23 7l-7 5 7 5V7z" />
-                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                    <path d="M20 7h-3l-2-3H9L7 7H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1z" />
+                    <path d="M9 13.5a3 3 0 0 1 5.2-2" /><polyline points="14.5 9.5 14.5 11.6 12.4 11.6" />
+                    <path d="M15 12.5a3 3 0 0 1-5.2 2" /><polyline points="9.5 16.5 9.5 14.4 11.6 14.4" />
                   </svg>
                 </button>
-              ) : (
-                <span className={styles.controlSpacer} />
-              )}
-            </div>
-          )}
-        </div>
-      )}
+              </div>
+            ) : (
+              <div className={styles.callHeader}>
+                <img src={avatar} alt="" className={styles.callAvatar} />
+                <h2 className={styles.callName}>{chatTitle}</h2>
+                <p className={styles.callStatus}>{status}</p>
+              </div>
+            )}
+
+            {call.phase === "incoming" ? (
+              <div className={styles.callControls}>
+                <button className={`${styles.controlBtn} ${styles.endCallBtn}`} onClick={call.decline} aria-label="Decline">{hangIcon}</button>
+                <button className={`${styles.controlBtn} ${styles.acceptCallBtn}`} onClick={call.accept} aria-label="Accept">
+                  {isVideo ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" /></svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.85A16 16 0 0 0 16 17.09l.1-.1a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
+                  )}
+                </button>
+              </div>
+            ) : (
+              <div className={styles.callDock} onClick={(event) => event.stopPropagation()}>
+                {isVideo && connected && <span className={styles.callTimer}>{clock}</span>}
+                <div className={styles.callControls}>
+                  {isVideo && (
+                    <button
+                      className={`${styles.controlBtn} ${call.cameraOn ? "" : styles.controlBtnActive}`}
+                      onClick={call.toggleCamera}
+                      aria-label={call.cameraOn ? "Turn camera off" : "Turn camera on"}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M23 7l-7 5 7 5V7z" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                        {!call.cameraOn && <line x1="1" y1="1" x2="23" y2="23" />}
+                      </svg>
+                    </button>
+                  )}
+                  <button className={`${styles.controlBtn} ${call.muted ? styles.controlBtnActive : ""}`} onClick={call.toggleMute} aria-label={call.muted ? "Unmute" : "Mute"}>
+                    {micIcon}
+                  </button>
+                  <button className={`${styles.controlBtn} ${styles.endCallBtn}`} onClick={call.hangup} aria-label="End call">{hangIcon}</button>
+                  <button className={`${styles.controlBtn} ${call.speakerOn ? "" : styles.controlBtnActive}`} onClick={call.toggleSpeaker} aria-label={call.speakerOn ? "Mute their sound" : "Unmute their sound"}>
+                    {speakerIcon}
+                  </button>
+                </div>
+                {isVideo && connected && <p className={styles.callHint}>Tap the screen to hide controls · tap the small video to swap</p>}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Header */}
       <header className={styles.header}>
@@ -741,12 +774,12 @@ export default function ChatView({ onBack }: Props) {
               <polyline points="21 15 16 10 5 21" />
             </svg>
           </button>
-          <button id="btn-call" className={styles.iconBtn} onClick={() => call.start("voice")}>
+          <button id="btn-call" className={styles.iconBtn} onClick={() => { setSwapVideos(false); setCallChrome(true); void call.start("voice"); }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.85A16 16 0 0 0 16 17.09l.1-.1a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
             </svg>
           </button>
-          <button id="btn-video" className={styles.iconBtn} onClick={() => call.start("video")}>
+          <button id="btn-video" className={styles.iconBtn} onClick={() => { setSwapVideos(false); setCallChrome(true); void call.start("video"); }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="23 7 16 12 23 17 23 7" />
               <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
@@ -858,6 +891,7 @@ export default function ChatView({ onBack }: Props) {
           streak={streak}
           state={streakState}
           hoursLeft={streakHours}
+          bestStreak={bestStreak}
           partnerName={chatTitle}
           onClose={() => setShowStreak(false)}
           onSnap={() => { setShowStreak(false); setShowCamera(true); }}
@@ -865,7 +899,29 @@ export default function ChatView({ onBack }: Props) {
         />
       )}
 
-      {showCamera && <SnapCamera onClose={() => setShowCamera(false)} onSend={sendSnap} />}
+      {showCamera && (
+        <SnapCamera
+          onClose={() => setShowCamera(false)}
+          onSent={() => setStreakNote("Snap sent 🔥 and saved to Memories")}
+          bestStreak={bestStreak}
+          partnerName={chatTitle}
+        />
+      )}
+
+      {daily && daily.mine === null && !selectedIds && (
+        <button type="button" className={styles.dailyBanner} onClick={() => setShowDaily(true)}>
+          <span className={styles.dailyBannerIcon}>💬</span>
+          <span className={styles.dailyBannerCopy}>
+            <strong>{daily.theyAnswered ? `${chatTitle} answered today's question` : "Question of the day"}</strong>
+            <span>{daily.question}</span>
+          </span>
+          <span className={styles.dailyBannerGo}>Answer</span>
+        </button>
+      )}
+
+      {showDaily && (
+        <DailyQuestion daily={daily} partnerName={chatTitle} onAnswer={answerDaily} onClose={() => setShowDaily(false)} />
+      )}
 
       {/* Messages */}
       <div className={styles.chatBody}>
@@ -1224,6 +1280,18 @@ export default function ChatView({ onBack }: Props) {
                     socketRef.current?.emit("typing", e.target.value.length > 0);
                   }}
                 />
+                {!input.trim() && !editingMsgId && (
+                  <button
+                    type="button"
+                    className={`${styles.emojiToggle} ${styles.heartToggle}`}
+                    aria-label={`Tell ${chatTitle} you're thinking of them`}
+                    onClick={() => void nudgePartner()}
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 21.2l-1.4-1.3C5.4 15.2 2 12.1 2 8.3 2 5.2 4.4 2.8 7.5 2.8c1.7 0 3.4.8 4.5 2.1 1.1-1.3 2.8-2.1 4.5-2.1 3.1 0 5.5 2.4 5.5 5.5 0 3.8-3.4 6.9-8.6 11.6L12 21.2z" />
+                    </svg>
+                  </button>
+                )}
                 {!input.trim() && !editingMsgId && (
                   <button
                     type="button"

@@ -11,6 +11,7 @@ const coupleSchema = new mongoose.Schema({
   status: { type: String, enum: ['pending', 'active'], default: 'pending' },
   anniversary: { type: Date },
   currentStreak: { type: Number, default: 0 },
+  bestStreak: { type: Number, default: 0 },
   lastStreakDate: { type: String },
   partner1ActiveDate: { type: String },
   partner2ActiveDate: { type: String },

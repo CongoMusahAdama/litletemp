@@ -183,3 +183,61 @@
   padding: 10px 16px;
   cursor: pointer;
 }
+
+.rewardCard {
+  width: 100%;
+  margin-top: 12px;
+  background: #fafafa;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 22px;
+  padding: 16px;
+  text-align: left;
+}
+
+.rewardList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rewardList li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: #fff;
+  opacity: 0.6;
+}
+
+.rewardList li.rewardOpen {
+  opacity: 1;
+  box-shadow: 0 2px 8px rgba(255, 64, 129, 0.12);
+}
+
+.rewardIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #FCE7F3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.rewardName { flex: 1; font-size: 13px; font-weight: 700; }
+
+.rewardDays { font-size: 11px; font-weight: 700; color: #8a8d91; }
+.rewardOpen .rewardDays { color: #FF4081; }
+
+.rewardNote {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: #8a8d91;
+  text-align: center;
+}

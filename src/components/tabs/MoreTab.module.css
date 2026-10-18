@@ -451,3 +451,22 @@
   font-family: 'Sora', sans-serif;
   background: transparent;
 }
+
+.bubbleLocked { position: relative; }
+.bubbleLocked::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+}
+.bubbleLock {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 16px;
+  line-height: 1;
+}
+.bubbleLock small { font-size: 10px; font-weight: 800; color: #1a1a1a; margin-top: 2px; }

@@ -22,6 +22,7 @@ export type CoupleInfo = {
   expectedPartnerName: string;
   anniversary: string | null;
   currentStreak: number;
+  bestStreak?: number;
   wallpaperUrl: string;
   partnerId: string | null;
   gatePassword?: string;

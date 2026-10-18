@@ -12,6 +12,15 @@ type Signal = {
   data?: RTCSessionDescriptionInit | RTCIceCandidateInit;
 };
 
+// Ask for the phone's full camera quality; the browser scales down if it can't.
+const VIDEO_QUALITY: MediaTrackConstraints = {
+  width: { ideal: 1920 },
+  height: { ideal: 1080 },
+  frameRate: { ideal: 30, max: 30 },
+};
+const AUDIO_QUALITY: MediaTrackConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+const VIDEO_BITRATE = 2_500_000;
+
 const ICE: RTCConfiguration = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
@@ -24,6 +33,8 @@ export function useCoupleCall(socket: Socket | null) {
   const [callType, setCallType] = useState<CallKind>("voice");
   const [muted, setMuted] = useState(false);
   const [cameraOn, setCameraOn] = useState(true);
+  const [facing, setFacing] = useState<"user" | "environment">("user");
+  const [speakerOn, setSpeakerOn] = useState(true);
   const [seconds, setSeconds] = useState(0);
   const [notice, setNotice] = useState("");
 
@@ -34,6 +45,7 @@ export function useCoupleCall(socket: Socket | null) {
   const pendingOffer = useRef<RTCSessionDescriptionInit | null>(null);
   const phaseRef = useRef<CallPhase>("idle");
   const typeRef = useRef<CallKind>("voice");
+  const facingRef = useRef<"user" | "environment">("user");
   const socketRef = useRef(socket);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -80,6 +92,10 @@ export function useCoupleCall(socket: Socket | null) {
     pendingOffer.current = null;
     setMuted(false);
     setCameraOn(true);
+    setSpeakerOn(true);
+    cameraOnRef.current = true;
+    setFacing("user");
+    facingRef.current = "user";
     setSeconds(0);
     setPhase("idle");
   };
@@ -116,12 +132,34 @@ export function useCoupleCall(socket: Socket | null) {
 
   const grabMedia = async (type: CallKind) => {
     const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true },
-      video: type === "video" ? { facingMode: "user" } : false,
+      audio: AUDIO_QUALITY,
+      video: type === "video" ? { ...VIDEO_QUALITY, facingMode: facingRef.current } : false,
     });
+    stream.getVideoTracks().forEach((track) => { track.contentHint = "motion"; });
     localRef.current = stream;
     attachLocal();
     return stream;
+  };
+
+  // Let video use a higher bitrate than the browser's cautious default.
+  const tuneSenders = async (pc: RTCPeerConnection) => {
+    for (const sender of pc.getSenders()) {
+      if (sender.track?.kind !== "video") continue;
+      try {
+        const params = sender.getParameters();
+        if (!params.encodings?.length) params.encodings = [{}];
+        params.encodings[0].maxBitrate = VIDEO_BITRATE;
+        params.encodings[0].maxFramerate = 30;
+        await sender.setParameters(params);
+      } catch {
+        // Some browsers refuse custom parameters; the call still works.
+      }
+    }
+  };
+
+  const addTracks = async (pc: RTCPeerConnection, stream: MediaStream) => {
+    stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+    await tuneSenders(pc);
   };
 
   const start = async (type: CallKind) => {
@@ -133,7 +171,7 @@ export function useCoupleCall(socket: Socket | null) {
     try {
       const stream = await grabMedia(type);
       const pc = makePc();
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      await addTracks(pc, stream);
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       signal("offer", { type: offer.type, sdp: offer.sdp }, type);
@@ -150,7 +188,7 @@ export function useCoupleCall(socket: Socket | null) {
     try {
       const stream = await grabMedia(type);
       const pc = makePc();
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      await addTracks(pc, stream);
       setPhase("connected");
       await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
       await pc.setRemoteDescription(offer);
@@ -187,11 +225,51 @@ export function useCoupleCall(socket: Socket | null) {
     });
   };
 
+  const cameraOnRef = useRef(true);
   const toggleCamera = () => {
     setCameraOn((value) => {
       const next = !value;
+      cameraOnRef.current = next;
       localRef.current?.getVideoTracks().forEach((track) => {
         track.enabled = next;
+      });
+      return next;
+    });
+  };
+
+  // Swap between front and back camera without dropping the call.
+  const switchCamera = async () => {
+    const stream = localRef.current;
+    if (!stream || typeRef.current !== "video") return;
+    const next = facingRef.current === "user" ? "environment" : "user";
+    try {
+      const fresh = await navigator.mediaDevices.getUserMedia({ video: { ...VIDEO_QUALITY, facingMode: { exact: next } } })
+        .catch(() => navigator.mediaDevices.getUserMedia({ video: { ...VIDEO_QUALITY, facingMode: next } }));
+      const track = fresh.getVideoTracks()[0];
+      if (!track) return;
+      track.contentHint = "motion";
+      track.enabled = cameraOnRef.current;
+      const sender = pcRef.current?.getSenders().find((item) => item.track?.kind === "video");
+      if (sender) await sender.replaceTrack(track);
+      stream.getVideoTracks().forEach((old) => {
+        stream.removeTrack(old);
+        old.stop();
+      });
+      stream.addTrack(track);
+      facingRef.current = next;
+      setFacing(next);
+      attachLocal();
+      if (pcRef.current) await tuneSenders(pcRef.current);
+    } catch {
+      setNotice("Could not switch camera");
+    }
+  };
+
+  const toggleSpeaker = () => {
+    setSpeakerOn((value) => {
+      const next = !value;
+      [remoteVideoRef.current, remoteAudioRef.current].forEach((node) => {
+        if (node) node.muted = !next;
       });
       return next;
     });
@@ -279,5 +357,9 @@ export function useCoupleCall(socket: Socket | null) {
     hangup,
     toggleMute,
     toggleCamera,
+    facing,
+    speakerOn,
+    switchCamera,
+    toggleSpeaker,
   };
 }

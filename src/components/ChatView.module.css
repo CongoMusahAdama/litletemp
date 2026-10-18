@@ -917,9 +917,13 @@
 
 /* ── Call Overlay ── */
 .callOverlay {
-  position: absolute;
-  inset: 0;
-  z-index: 100;
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, 430px);
+  height: 100dvh;
+  z-index: 1500;
   background: #111;
   display: flex;
   flex-direction: column;
@@ -1279,3 +1283,179 @@
 }
 
 .rowBabe .selectTick { margin-right: 8px; }
+
+/* ── Question of the day banner ── */
+.dailyBanner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 10px 0;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--bg-card);
+  box-shadow: 0 4px 14px rgba(255, 64, 129, 0.14);
+  text-align: left;
+  font-family: inherit;
+  color: var(--text-primary);
+  cursor: pointer;
+  animation: fadeIn 0.25s ease;
+}
+
+.dailyBannerIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #FCE7F3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.dailyBannerCopy { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.dailyBannerCopy strong { font-size: 12px; font-weight: 800; color: #FF4081; }
+.dailyBannerCopy span {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dailyBannerGo {
+  flex-shrink: 0;
+  padding: 7px 12px;
+  border-radius: 100px;
+  background: #111;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.heartToggle { color: #FF4081; }
+.heartToggle:active { transform: scale(1.25); }
+
+/* ── Video call: partner full screen, you in a corner ── */
+.callOverlayVideo {
+  background: #000;
+  padding: calc(14px + env(safe-area-inset-top)) 16px calc(22px + env(safe-area-inset-bottom));
+}
+
+.stageVideo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #111;
+  z-index: 0;
+  transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pipVideo {
+  position: absolute;
+  top: calc(76px + env(safe-area-inset-top));
+  right: 14px;
+  width: 112px;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 20px;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  background: #222;
+  z-index: 3;
+  cursor: pointer;
+  transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mirrorVideo { transform: scaleX(-1); }
+.videoOff { opacity: 0.15; }
+
+/* Keeps the controls readable over a bright picture. */
+.callShade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,0.45) 0%, transparent 22%, transparent 68%, rgba(0,0,0,0.55) 100%);
+  transition: opacity 0.3s ease;
+}
+
+.videoTopBar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.videoTopSpacer { width: 44px; flex-shrink: 0; }
+
+.videoTitle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.videoTitle strong { font-size: 17px; font-weight: 800; text-shadow: 0 1px 6px rgba(0,0,0,0.4); }
+.videoTitle span { font-size: 12px; opacity: 0.85; }
+
+.videoTopBtn {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.videoTopBtn svg { width: 22px; height: 22px; }
+
+.callDock {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.callTimer {
+  padding: 6px 14px;
+  border-radius: 100px;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.callOverlayVideo .callControls { margin-bottom: 0; gap: 18px; }
+.callOverlayVideo .controlBtn { width: 58px; height: 58px; background: rgba(255, 255, 255, 0.22); }
+.callOverlayVideo .controlBtn svg { width: 24px; height: 24px; }
+.callOverlayVideo .endCallBtn { width: 68px; height: 68px; background: #ef4444; }
+.callOverlayVideo .controlBtnActive { background: #fff; color: #1a1a1a; }
+
+.callHint {
+  font-size: 11px;
+  opacity: 0.75;
+  text-align: center;
+}
+
+.callChromeHidden .videoTopBar,
+.callChromeHidden .callDock { opacity: 0; pointer-events: none; }
+.callChromeHidden .videoTopBar { transform: translateY(-12px); }
+.callChromeHidden .callDock { transform: translateY(12px); }
+.callChromeHidden .callShade { opacity: 0; }
+.callChromeHidden .pipVideo { top: calc(16px + env(safe-area-inset-top)); }

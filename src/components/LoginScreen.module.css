@@ -1275,3 +1275,60 @@
   .pairArtImg { animation: none; }
   .pairFloat { display: none; }
 }
+
+.forgotLink {
+  align-self: flex-end;
+  border: 0;
+  background: transparent;
+  color: #FF4081;
+  font-family: 'Sora', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
+.forgotTop {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding: calc(24px + env(safe-area-inset-top)) 24px 16px;
+}
+
+.forgotBack {
+  position: absolute;
+  left: 16px;
+  top: calc(20px + env(safe-area-inset-top));
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  color: #111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+}
+.forgotBack svg { width: 20px; height: 20px; }
+
+.forgotEmoji {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: #FCE7F3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 44px;
+  margin-top: 28px;
+  animation: forgotWiggle 2.4s ease-in-out infinite;
+}
+
+@keyframes forgotWiggle {
+  0%, 100% { transform: rotate(0deg); }
+  10% { transform: rotate(-12deg); }
+  20% { transform: rotate(10deg); }
+  30% { transform: rotate(0deg); }
+}

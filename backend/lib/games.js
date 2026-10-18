@@ -1,42 +1,6 @@
-const SAME = [
-  { prompt: "A perfect evening", a: "Movie on the couch", b: "A walk outside" },
-  { prompt: "How we eat tonight", a: "Cook together", b: "Order something" },
-  { prompt: "The trip we take", a: "Beach", b: "Mountains" },
-  { prompt: "Staying close today", a: "Little texts all day", b: "One long call" },
-  { prompt: "Our best hour", a: "Early morning", b: "Late at night" },
-  { prompt: "A sweet surprise", a: "A note", b: "A plan" },
-  { prompt: "This weekend", a: "Stay in", b: "Go out" },
-  { prompt: "How we share a moment", a: "A photo", b: "A voice note" },
-  { prompt: "Dance in the kitchen", a: "Slow", b: "Silly" },
-  { prompt: "Planning us", a: "A real plan", b: "Leave it open" },
-];
-
-const KNOW = [
-  { prompt: "Their easy Sunday", a: "Sleep in", b: "Get out of the house" },
-  { prompt: "When they are upset", a: "Quiet time", b: "A hug first" },
-  { prompt: "A gift they love", a: "Something useful", b: "Something sweet" },
-  { prompt: "Their kind of song", a: "Soft", b: "Loud" },
-  { prompt: "Morning drink", a: "Coffee", b: "Tea" },
-  { prompt: "Where they sit", a: "Window seat", b: "Aisle" },
-  { prompt: "A note from them", a: "Short and simple", b: "Long and detailed" },
-  { prompt: "Their comfort night", a: "Home", b: "Somewhere new" },
-];
-
-const TURNS = [
-  { prompt: "Notice", a: "Tell them one thing you noticed about them lately." },
-  { prompt: "Song", a: "Name the first song that reminds you of them, and why." },
-  { prompt: "Photo", a: "Describe your favorite photo of the two of you." },
-  { prompt: "This week", a: "Share one small thing from this week you have not told them." },
-  { prompt: "Compliment", a: "Compliment something they rarely get complimented for." },
-  { prompt: "Hour", a: "Name one hour this week that will belong to the two of you." },
-  { prompt: "Question", a: "Ask the question you have been meaning to ask." },
-  { prompt: "Firsts", a: "Tell a memory from the beginning of the two of you." },
-  { prompt: "More", a: "Say one thing you want more of together." },
-  { prompt: "Evening", a: "Describe a perfect evening with them." },
-  { prompt: "Thanks", a: "Thank them for one specific thing." },
-  { prompt: "Tomorrow", a: "Promise one small thing you will do for them tomorrow." },
-];
-
+const { DEFAULT_DECKS, KINDS, ROUND_SIZE, TOD_ROUNDS } = require('./gameDecks');
+const { bareUpload, publicMedia } = require('./present');
+const GameCard = require('../models/GameCard');
 const GameState = require('../models/GameState');
 
 const sessions = new Map();
@@ -56,10 +20,48 @@ async function persist(coupleId, state) {
   );
 }
 
-function deck(kind) {
-  if (kind === "know") return KNOW;
-  if (kind === "turn") return TURNS;
-  return SAME;
+// Games where each player writes an answer instead of picking A or B.
+function isWritten(kind) {
+  return kind === "turn" || kind === "spicy";
+}
+
+function shuffle(list) {
+  const copy = [...list];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+// The couple's own cards come first, then built-in cards fill the round.
+async function buildDeck(coupleId, kind) {
+  const custom = await GameCard.find({ coupleId, kind }).lean();
+  const mine = shuffle(custom).slice(0, ROUND_SIZE).map((card) => ({ prompt: card.prompt, a: card.a, b: card.b || "", custom: true }));
+  const fill = shuffle(DEFAULT_DECKS[kind]).slice(0, Math.max(0, ROUND_SIZE - mine.length)).map((card) => ({ ...card, b: card.b || "", custom: false }));
+  return shuffle([...mine, ...fill]);
+}
+
+// Truth or Dare keeps two piles; the couple's own cards go on top.
+async function buildPiles(coupleId) {
+  const custom = await GameCard.find({ coupleId, kind: "tod" }).lean();
+  const pile = (type) => [
+    ...shuffle(custom.filter((card) => card.prompt === type)).map((card) => ({ text: card.a, custom: true })),
+    ...shuffle(DEFAULT_DECKS.tod.filter((card) => card.prompt === type)).map((card) => ({ text: card.a, custom: false })),
+  ];
+  return { Truth: pile("Truth"), Dare: pile("Dare") };
+}
+
+function cleanReply(move) {
+  const text = String(move.text || "").trim().slice(0, 500);
+  const mediaUrl = bareUpload(move.mediaUrl);
+  const mediaType = ["image", "video", "audio"].includes(move.mediaType) ? move.mediaType : "";
+  if (!text && !mediaUrl) return null;
+  return { text, mediaUrl: mediaUrl && mediaType ? mediaUrl : "", mediaType: mediaUrl ? mediaType : "" };
+}
+
+function deck(state) {
+  return state.cards?.length ? state.cards : DEFAULT_DECKS[state.kind] || DEFAULT_DECKS.same;
 }
 
 function touchPlayer(state, userId) {
@@ -68,9 +70,15 @@ function touchPlayer(state, userId) {
 }
 
 async function startGame(coupleId, kind, userId) {
-  const safeKind = kind === "know" || kind === "turn" ? kind : "same";
+  const safeKind = KINDS.includes(kind) ? kind : "same";
   const state = {
     kind: safeKind,
+    cards: safeKind === "tod" ? [] : await buildDeck(coupleId, safeKind),
+    piles: safeKind === "tod" ? await buildPiles(coupleId) : null,
+    card: null,
+    choice: "",
+    replies: {},
+    answers: {},
     round: 0,
     picks: {},
     guesses: {},
@@ -122,7 +130,46 @@ async function moveGame(coupleId, userId, move) {
   if (!state || state.finished) return state;
   touchPlayer(state, userId);
   const id = String(userId);
-  if (move?.type === "pick" && state.kind !== "turn" && !state.revealed) {
+  if (state.kind === "tod") {
+    if (move?.type === "choose" && state.turnId === id && !state.card && (move.choice === "Truth" || move.choice === "Dare")) {
+      const pile = state.piles?.[move.choice] || [];
+      if (!pile.length) {
+        // Ran out: reshuffle the built-in cards for this pile.
+        DEFAULT_DECKS.tod.filter((card) => card.prompt === move.choice).forEach((card) => pile.push({ text: card.a, custom: false }));
+        state.piles[move.choice] = shuffle(pile);
+      }
+      state.card = state.piles[move.choice].shift();
+      state.choice = move.choice;
+    }
+    if (move?.type === "reply" && state.card) {
+      const reply = cleanReply(move);
+      if (reply) {
+        state.replies = state.replies || {};
+        state.replies[id] = reply;
+      }
+    }
+    if (move?.type === "next" && state.card) {
+      state.round += 1;
+      state.card = null;
+      state.choice = "";
+      state.replies = {};
+      if (state.round >= TOD_ROUNDS) state.finished = true;
+      else if (state.players.length > 1) {
+        const index = state.players.indexOf(state.turnId);
+        state.turnId = state.players[(Math.max(index, 0) + 1) % state.players.length];
+      }
+    }
+    await persist(coupleId, state);
+    return state;
+  }
+  if (move?.type === "answer" && isWritten(state.kind)) {
+    const text = String(move.text || "").trim().slice(0, 500);
+    if (text) {
+      state.answers = state.answers || {};
+      state.answers[id] = text;
+    }
+  }
+  if (move?.type === "pick" && !isWritten(state.kind) && !state.revealed) {
     const choice = move.choice === "b" ? "b" : "a";
     if (state.kind === "know") {
       if (move.guess !== "a" && move.guess !== "b") return state;
@@ -132,9 +179,10 @@ async function moveGame(coupleId, userId, move) {
     revealIfReady(state);
   }
   if (move?.type === "next") {
-    const total = deck(state.kind).length;
-    if (state.kind === "turn") {
+    const total = deck(state).length;
+    if (isWritten(state.kind)) {
       state.round += 1;
+      state.answers = {};
       if (state.round >= total) state.finished = true;
       else if (state.players.length > 1) {
         const index = state.players.indexOf(state.turnId);
@@ -152,10 +200,45 @@ async function moveGame(coupleId, userId, move) {
   return state;
 }
 
+function presentReply(reply) {
+  if (!reply) return null;
+  return { text: reply.text || "", mediaUrl: reply.mediaUrl ? publicMedia(reply.mediaUrl) : "", mediaType: reply.mediaType || "" };
+}
+
 function viewGame(state, userId) {
   if (!state) return null;
   const me = String(userId);
-  const list = deck(state.kind);
+  if (state.kind === "tod") {
+    const partner = state.players.find((pid) => pid !== me) || "";
+    return {
+      kind: "tod",
+      round: Math.min(state.round, TOD_ROUNDS),
+      total: TOD_ROUNDS,
+      prompt: state.choice || "",
+      a: state.card?.text || "",
+      b: "",
+      custom: Boolean(state.card?.custom),
+      choice: state.choice || "",
+      myReply: presentReply(state.replies?.[me]),
+      partnerReply: partner ? presentReply(state.replies?.[partner]) : null,
+      myAnswer: "",
+      partnerAnswer: "",
+      mine: "",
+      myGuess: "",
+      partnerPick: "",
+      partnerGuess: "",
+      partnerLocked: false,
+      iLocked: false,
+      revealed: false,
+      matches: 0,
+      myKnown: 0,
+      partnerKnown: 0,
+      turnMine: state.turnId === me,
+      finished: state.finished,
+      waitingPartner: state.players.length < 2,
+    };
+  }
+  const list = deck(state);
   const card = list[Math.min(state.round, list.length - 1)];
   const partnerId = state.players.find((id) => id !== me) || "";
   return {
@@ -165,6 +248,9 @@ function viewGame(state, userId) {
     prompt: card.prompt,
     a: card.a,
     b: card.b || "",
+    custom: Boolean(card.custom),
+    myAnswer: state.answers?.[me] || "",
+    partnerAnswer: partnerId ? (state.answers?.[partnerId] || "") : "",
     mine: state.picks[me] || "",
     myGuess: state.guesses[me] || "",
     partnerPick: state.revealed ? (state.picks[partnerId] || "") : "",

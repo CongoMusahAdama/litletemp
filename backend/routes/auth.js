@@ -243,6 +243,35 @@ router.post('/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }), async (r
   }
 });
 
+// Forgot password: prove who you are by naming your partner, then choose a new password.
+router.post('/forgot', rateLimit({ windowMs: 15 * 60 * 1000, max: 8 }), async (req, res, next) => {
+  try {
+    const loginName = cleanName(req.body.name);
+    const partnerName = cleanName(req.body.partnerName).replace(/^@/, '');
+    const password = String(req.body.password || '').trim();
+    if (loginKey(loginName).length < 2 || loginKey(partnerName).length < 2) {
+      return res.status(400).json({ error: "Enter your name and your partner's name" });
+    }
+    if (password.length < 4) {
+      return res.status(400).json({ error: 'Password must be at least 4 characters' });
+    }
+    const user = await findByLoginName(loginName);
+    const couple = user?.coupleId ? await Couple.findById(user.coupleId) : null;
+    const partnerId = couple ? otherPartnerId(couple, user._id) : '';
+    const partner = partnerId ? await User.findById(partnerId) : null;
+    const matches = partner && (sameName(partner.name, partnerName) || sameName(partner.username, partnerName));
+    if (!user || !couple || !matches) {
+      return res.status(401).json({ error: "Those names don't match a pair. Check the spelling and try again." });
+    }
+    user.passwordHash = await bcrypt.hash(password, 10);
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    await user.save();
+    return welcome(res, user, couple);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Set / update password (requires valid token)
 router.post('/set-password', requireAuth, async (req, res, next) => {
   try {

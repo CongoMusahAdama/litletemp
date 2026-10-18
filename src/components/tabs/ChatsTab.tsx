@@ -5,6 +5,10 @@ import { io } from "socket.io-client";
 import styles from "./ChatsTab.module.css";
 import { API_URL, api, getToken, mediaUrl, shownName, uploadFile } from "@/lib/api";
 import { useSession } from "@/context/SessionContext";
+import { useDaily } from "@/hooks/useDaily";
+import DailyQuestion from "../DailyQuestion";
+import OnThisDay from "../OnThisDay";
+import { sendNudge } from "../HeartBurst";
 
 interface Props {
   onOpenChat: () => void;
@@ -46,6 +50,25 @@ export default function ChatsTab({ onOpenChat }: Props) {
   const [adding, setAdding] = useState(false);
   const [storyBroken, setStoryBroken] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const { daily, answer } = useDaily();
+  const [showDaily, setShowDaily] = useState(false);
+  const [nudgeNote, setNudgeNote] = useState("");
+  const [nudging, setNudging] = useState(false);
+
+  const nudge = async () => {
+    if (nudging) return;
+    setNudging(true);
+    navigator.vibrate?.(40);
+    try {
+      await sendNudge();
+      setNudgeNote("Sent 💗 They'll feel it");
+    } catch (error) {
+      setNudgeNote(error instanceof Error ? error.message : "Could not send that");
+    } finally {
+      setNudging(false);
+      window.setTimeout(() => setNudgeNote(""), 2400);
+    }
+  };
 
   useEffect(() => {
     refresh().catch(() => undefined);
@@ -239,6 +262,35 @@ export default function ChatsTab({ onOpenChat }: Props) {
           </div>
         </button>
       </div>
+
+      <div className={styles.extras}>
+        <button type="button" className={`${styles.nudgeCard} ${nudging ? styles.nudgeSending : ""}`} onClick={() => void nudge()}>
+          <span className={styles.nudgeHeart}>💗</span>
+          <span className={styles.nudgeCopy}>
+            <strong>Thinking of you</strong>
+            <small>{nudgeNote || `Send ${partnerName} a little heart`}</small>
+          </span>
+        </button>
+
+        <button type="button" className={styles.dailyCard} onClick={() => setShowDaily(true)}>
+          <span className={styles.dailyKicker}>
+            💬 Question of the day
+            {daily && daily.mine === null && <em className={styles.dailyDot}>New</em>}
+          </span>
+          <span className={styles.dailyQuestion}>{daily?.question || "Loading…"}</span>
+          <span className={styles.dailyStatus}>
+            {!daily ? "" : daily.mine === null
+              ? (daily.theyAnswered ? `🔒 ${partnerName} answered. Your turn` : "Answer to keep your streak 🔥")
+              : daily.theirs === null ? `Waiting for ${partnerName}…` : "You both answered. Tap to read 💞"}
+          </span>
+        </button>
+      </div>
+
+      <OnThisDay />
+
+      {showDaily && (
+        <DailyQuestion daily={daily} partnerName={partnerName} onAnswer={answer} onClose={() => setShowDaily(false)} />
+      )}
 
       {watching && (
         <div className={styles.viewer}>

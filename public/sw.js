@@ -2,6 +2,7 @@ self.addEventListener("push", (event) => {
   const data = event.data ? event.data.json() : { unread: 1, title: "Little Temptation", body: "New message" };
   const unread = Number(data.unread) || 0;
   const quiet = data.kind === "morning" || data.kind === "away";
+  const nudge = data.kind === "nudge";
   event.waitUntil((async () => {
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       if (!quiet) windows.forEach((client) => client.postMessage({ type: "message-note" }));
@@ -10,9 +11,10 @@ self.addEventListener("push", (event) => {
           body: data.body || "New message",
           icon: data.icon || "/icon.png",
           badge: "/icon.png",
-          tag: quiet ? `lt-${data.kind}` : "lt-message",
+          tag: quiet || nudge || data.kind === "daily" ? `lt-${data.kind}` : "lt-message",
           renotify: true,
-          silent: quiet ? false : windows.length > 0,
+          silent: quiet || nudge ? false : windows.length > 0,
+          vibrate: nudge ? [80, 60, 80, 60, 220] : undefined,
           data: { url: "/" },
         }),
         !quiet && unread > 0 && navigator.setAppBadge ? navigator.setAppBadge(unread) : Promise.resolve(),

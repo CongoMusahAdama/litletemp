@@ -13,11 +13,12 @@ interface Props {
 
 export default function LoginScreen({ onLogin }: Props) {
   const { refresh } = useSession();
-  const [step, setStep] = useState<"login" | "intro" | "how" | "action_choice" | "start_names" | "share_code" | "join_code" | "set_password">("intro");
+  const [step, setStep] = useState<"login" | "intro" | "how" | "action_choice" | "start_names" | "share_code" | "join_code" | "set_password" | "forgot">("intro");
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
+  const [resetPartner, setResetPartner] = useState("");
   const [myName, setMyName] = useState("");
   const [myUsername, setMyUsername] = useState("");
   const [partnerName, setPartnerName] = useState("");
@@ -56,6 +57,28 @@ export default function LoginScreen({ onLogin }: Props) {
     } catch (error) {
       const msg = error instanceof Error ? error.message : "";
       Swal.fire({ title: "Sign in failed", text: msg || "Check your name and password", icon: "error", confirmButtonColor: "#1a1a1a" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgot = async () => {
+    if (loginUsername.trim().length < 2 || resetPartner.trim().length < 2) return;
+    if (newPassword.length < 4 || newPassword !== newPasswordConfirm) return;
+    setLoading(true);
+    try {
+      const data = await api<{ token: string }>("/api/auth/forgot", {
+        method: "POST",
+        body: JSON.stringify({ name: loginUsername.trim(), partnerName: resetPartner.trim(), password: newPassword }),
+      });
+      setToken(data.token);
+      setNewPassword("");
+      setNewPasswordConfirm("");
+      setResetPartner("");
+      await refresh();
+      onLogin();
+    } catch (error) {
+      Swal.fire({ title: "Could not reset", text: error instanceof Error ? error.message : "Try again", icon: "error", confirmButtonColor: "#1a1a1a" });
     } finally {
       setLoading(false);
     }
@@ -164,7 +187,9 @@ export default function LoginScreen({ onLogin }: Props) {
   }, [waiting, onLogin, refresh]);
 
   const handleBack = () => {
-    if (step === "login") {
+    if (step === "forgot") {
+      setStep("login");
+    } else if (step === "login") {
       setStep("action_choice");
     } else if (step === "how") {
       setStep("intro");
@@ -213,6 +238,9 @@ export default function LoginScreen({ onLogin }: Props) {
                   onChange={e => setLoginPassword(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && handleLogin()}
                 />
+                <button type="button" className={styles.forgotLink} onClick={() => setStep("forgot")}>
+                  Forgot password?
+                </button>
               </div>
             </div>
             <div className={styles.signInActions}>
@@ -234,6 +262,77 @@ export default function LoginScreen({ onLogin }: Props) {
               </button>
               <button className={styles.signInLink} onClick={handleBack}>
                 New here? Pair with your partner
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Forgot Password ── */}
+        {step === "forgot" && (
+          <div className={styles.signIn}>
+            <div className={styles.forgotTop}>
+              <button type="button" className={styles.forgotBack} onClick={handleBack} aria-label="Back to sign in">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
+              <span className={styles.forgotEmoji} aria-hidden="true">🔑</span>
+            </div>
+            <div className={styles.signInBody}>
+              <h1 className={styles.signInTitle}>Forgot your<br />password?</h1>
+              <p className={styles.signInSub}>Tell us your name and your partner&apos;s name, then pick a new password.</p>
+              <div className={styles.signInForm}>
+                <input
+                  type="text"
+                  className={styles.signInInput}
+                  placeholder="Your name"
+                  aria-label="Your name"
+                  autoComplete="username"
+                  value={loginUsername}
+                  onChange={e => setLoginUsername(e.target.value)}
+                />
+                <input
+                  type="text"
+                  className={styles.signInInput}
+                  placeholder="Your partner's name or username"
+                  aria-label="Your partner's name or username"
+                  value={resetPartner}
+                  onChange={e => setResetPartner(e.target.value)}
+                />
+                <input
+                  type="password"
+                  className={styles.signInInput}
+                  placeholder="New password (4+ characters)"
+                  aria-label="New password"
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                />
+                <input
+                  type="password"
+                  className={styles.signInInput}
+                  placeholder="Confirm new password"
+                  aria-label="Confirm new password"
+                  autoComplete="new-password"
+                  value={newPasswordConfirm}
+                  onChange={e => setNewPasswordConfirm(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleForgot()}
+                />
+                {newPasswordConfirm && newPassword !== newPasswordConfirm && (
+                  <p className={styles.nameHint}>Passwords do not match</p>
+                )}
+              </div>
+            </div>
+            <div className={styles.signInActions}>
+              <button
+                className={styles.signInBtn}
+                onClick={handleForgot}
+                disabled={loginUsername.trim().length < 2 || resetPartner.trim().length < 2 || newPassword.length < 4 || newPassword !== newPasswordConfirm || loading}
+              >
+                {loading ? <div className={styles.spinnerLight} /> : "Reset & sign in"}
+              </button>
+              <button className={styles.signInLink} onClick={handleBack}>
+                Remembered it? Sign in
               </button>
             </div>
           </div>

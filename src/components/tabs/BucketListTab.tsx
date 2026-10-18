@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { io } from "socket.io-client";
 import styles from "./BucketListTab.module.css";
+import { API_URL, api, getToken } from "@/lib/api";
 
 interface BucketItem {
-  id: number;
+  id: string;
   title: string;
   description?: string;
   completed: boolean;
@@ -13,14 +15,6 @@ interface BucketItem {
   targetDate?: string;
 }
 
-const initialItems: BucketItem[] = [
-  { id: 1, title: "Visit Paris together", description: "Eiffel Tower, Louvre, Seine river cruise", completed: false, category: "travel", dateAdded: "Jan 2024", targetDate: "Summer 2025" },
-  { id: 2, title: "Learn to cook Italian together", description: "Pasta making class + tiramisu", completed: true, category: "date", dateAdded: "Feb 2024", targetDate: "Mar 2024" },
-  { id: 3, title: "Write our story in the journal", description: "Document our journey from day 1", completed: false, category: "journal", dateAdded: "Mar 2024" },
-  { id: 4, title: "Road trip to the coast", description: "No GPS, just us and music", completed: false, category: "travel", dateAdded: "Apr 2024", targetDate: "June 2024" },
-  { id: 5, title: "Build a blanket fort & watch movies", description: "Cozy night with fairy lights", completed: true, category: "date", dateAdded: "May 2024" },
-  { id: 6, title: "Plant a tree together", description: "Our growing memory", completed: false, category: "memory", dateAdded: "Jun 2024", targetDate: "Fall 2024" },
-];
 
 const categories = [
   { id: "all", label: "All", icon: "📋" },
@@ -32,7 +26,7 @@ const categories = [
 ] as const;
 
 export default function BucketListTab() {
-  const [items, setItems] = useState<BucketItem[]>(initialItems);
+  const [items, setItems] = useState<BucketItem[]>([]);
   const [activeCategory, setActiveCategory] = useState<"all" | "travel" | "date" | "memory" | "personal" | "journal">("all");
   const [showAddModal, setShowAddModal] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -44,18 +38,30 @@ export default function BucketListTab() {
     ? items
     : items.filter(item => item.category === activeCategory);
 
-  const addItem = () => {
-    if (!newTitle.trim()) return;
-    const next: BucketItem = {
-      id: Date.now(),
-      title: newTitle,
-      description: newDescription,
-      completed: false,
-      category: newCategory,
-      dateAdded: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }),
-      targetDate: newTargetDate || undefined,
+  useEffect(() => {
+    const upsert = (item: BucketItem) => {
+      const next = { ...item, id: String(item.id) };
+      setItems((prev) => prev.some((row) => row.id === next.id) ? prev.map((row) => row.id === next.id ? next : row) : [next, ...prev]);
     };
-    setItems([next, ...items]);
+    api<BucketItem[]>("/api/bucket")
+      .then((rows) => setItems(rows.map((row) => ({ ...row, id: String(row.id) }))))
+      .catch(() => undefined);
+    const socket = io(API_URL, { auth: { token: getToken() } });
+    socket.on("bucket:new", upsert);
+    socket.on("bucket:updated", upsert);
+    socket.on("bucket:deleted", ({ id }: { id: string }) => setItems((prev) => prev.filter((row) => row.id !== String(id))));
+    return () => { socket.disconnect(); };
+  }, []);
+
+  const addItem = async () => {
+    if (!newTitle.trim()) return;
+    const saved = await api<BucketItem>("/api/bucket", {
+      method: "POST",
+      body: JSON.stringify({ title: newTitle, description: newDescription, category: newCategory, targetDate: newTargetDate || undefined }),
+    }).catch(() => null);
+    if (!saved) return;
+    const next = { ...saved, id: String(saved.id) };
+    setItems((prev) => [next, ...prev.filter((row) => row.id !== next.id)]);
     setNewTitle("");
     setNewDescription("");
     setNewCategory("travel");
@@ -63,14 +69,18 @@ export default function BucketListTab() {
     setShowAddModal(false);
   };
 
-  const toggleComplete = (id: number) => {
+  const toggleComplete = (id: string) => {
+    const current = items.find((item) => item.id === id);
+    if (!current) return;
     setItems(prev => prev.map(item =>
       item.id === id ? { ...item, completed: !item.completed } : item
     ));
+    api(`/api/bucket/${id}`, { method: "PATCH", body: JSON.stringify({ completed: !current.completed }) }).catch(() => undefined);
   };
 
-  const deleteItem = (id: number) => {
+  const deleteItem = (id: string) => {
     setItems(prev => prev.filter(item => item.id !== id));
+    api(`/api/bucket/${id}`, { method: "DELETE" }).catch(() => undefined);
   };
 
   const completedCount = items.filter(i => i.completed).length;
@@ -184,7 +194,7 @@ export default function BucketListTab() {
               <label>Target Date (optional)</label>
               <input type="date" className={styles.modalInput} value={newTargetDate} onChange={e => setNewTargetDate(e.target.value)} />
             </div>
-            <button className={styles.modalSave} onClick={addItem}>Add to List</button>
+            <button className={styles.modalSave} onClick={() => void addItem()}>Add to List</button>
           </div>
         </div>
       )}

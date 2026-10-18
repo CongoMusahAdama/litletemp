@@ -30,7 +30,8 @@ function streakView(couple, userId) {
   const midnight = new Date();
   midnight.setUTCHours(24, 0, 0, 0);
   const hoursLeft = Math.max(1, Math.ceil((midnight.getTime() - Date.now()) / 3600000));
-  return { streak, state, youCheckedIn, partnerCheckedIn, hoursLeft };
+  const bestStreak = Math.max(couple.bestStreak || 0, stored);
+  return { streak, state, youCheckedIn, partnerCheckedIn, hoursLeft, bestStreak };
 }
 
 async function touchStreak(couple, userId) {
@@ -44,6 +45,7 @@ async function touchStreak(couple, userId) {
     const continued = couple.lastStreakDate === yesterdayKey();
     couple.currentStreak = continued ? couple.currentStreak + 1 : 1;
     couple.lastStreakDate = today;
+    couple.bestStreak = Math.max(couple.bestStreak || 0, couple.currentStreak);
   }
   await couple.save();
   return couple.currentStreak;

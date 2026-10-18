@@ -31,6 +31,10 @@ export const BUBBLES = [
   { id: "sand", color: "#C4A574", ink: "#1a1a1a" },
   { id: "ivory", color: "#F7F1E8", ink: "#1a1a1a" },
   { id: "emerald", color: "#1F9D55", ink: "#ffffff" },
+  // Earned through the streak (see lib/rewards.ts).
+  { id: "ruby", color: "#C2185B", ink: "#ffffff" },
+  { id: "midnight", color: "#2D1B4E", ink: "#ffffff" },
+  { id: "gold", color: "#D4A017", ink: "#1a1a1a" },
 ];
 
 export function applyBubble(color?: string) {

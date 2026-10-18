@@ -2,6 +2,7 @@
 
 import styles from "./StreakScreen.module.css";
 import { FaceCluster, type FaceKind } from "./MoodFaces";
+import { REWARDS } from "@/lib/rewards";
 
 export type StreakState = "start" | "saved" | "waiting" | "expiring" | "lost";
 
@@ -9,6 +10,7 @@ interface Props {
   streak: number;
   state: StreakState;
   hoursLeft: number;
+  bestStreak: number;
   partnerName: string;
   onClose: () => void;
   onSnap: () => void;
@@ -35,7 +37,7 @@ const MOOD: Record<StreakState, FaceKind> = {
   start: "neutral",
 };
 
-export default function StreakScreen({ streak, state, hoursLeft, partnerName, onClose, onSnap, onCheckIn }: Props) {
+export default function StreakScreen({ streak, state, hoursLeft, bestStreak, partnerName, onClose, onSnap, onCheckIn }: Props) {
   const levelIndex = LEVELS.reduce((found, level, index) => (streak >= level.days ? index : found), 0);
   const level = LEVELS[levelIndex];
   const next = LEVELS[levelIndex + 1];
@@ -84,6 +86,26 @@ export default function StreakScreen({ streak, state, hoursLeft, partnerName, on
               </div>
             ))}
           </div>
+        </div>
+
+        <div className={styles.rewardCard}>
+          <div className={styles.levelHead}>
+            <span>Streak rewards</span>
+            <span className={styles.levelNext}>Best: {bestStreak} days</span>
+          </div>
+          <ul className={styles.rewardList}>
+            {REWARDS.map((reward) => {
+              const open = bestStreak >= reward.days;
+              return (
+                <li key={reward.id} className={open ? styles.rewardOpen : ""}>
+                  <span className={styles.rewardIcon}>{open ? reward.emoji : "🔒"}</span>
+                  <span className={styles.rewardName}>{reward.name}</span>
+                  <span className={styles.rewardDays}>{open ? "Unlocked" : `${reward.days} days`}</span>
+                </li>
+              );
+            })}
+          </ul>
+          <p className={styles.rewardNote}>Rewards stay yours even if a streak ends.</p>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import BottomNav from "./BottomNav";
 import ChatsTab from "./tabs/ChatsTab";
@@ -15,6 +15,7 @@ import { applyBubble } from "@/lib/bubbles";
 import { playMessageNote } from "@/lib/note";
 import HomeBadge from "./HomeBadge";
 import { MoodPopup, PairingBoard, PasswordSetup } from "./CoupleOverlays";
+import HeartBurst from "./HeartBurst";
 
 export type Tab = "chats" | "journal" | "mood" | "more" | "action";
 
@@ -26,6 +27,8 @@ export default function AppShell() {
   const [chatOpen, setChatOpen] = useState(true); // open chat immediately
   const [triggerEntry, setTriggerEntry] = useState(0);
   const [covered, setCovered] = useState(false);
+  const [nudge, setNudge] = useState<{ name: string; emoji: string; at: number } | null>(null);
+  const clearNudge = useCallback(() => setNudge(null), []);
 
   useEffect(() => {
     const saved = user?.bubbleColor || localStorage.getItem("lt_bubble") || "";
@@ -38,6 +41,7 @@ export default function AppShell() {
     const pull = () => { refreshRef.current().catch(() => undefined); };
     socket.on("connect", pull);
     socket.on("partner:updated", pull);
+    socket.on("nudge", (payload: { name: string; emoji: string; at: number }) => setNudge(payload));
     socket.on("partner:joined", (payload: { partner?: PublicUser }) => {
       if (payload?.partner) markJoined(payload.partner);
       pull();
@@ -97,6 +101,7 @@ export default function AppShell() {
       {couple?.status === "pending" && couple.gatePassword && !partner && <PairingBoard />}
       {(couple?.status === "active" || partner) && user && !user.hasPassword && <PasswordSetup />}
       {couple?.status === "active" && user?.hasPassword && <MoodPopup />}
+      {nudge && <HeartBurst key={nudge.at} name={nudge.name} emoji={nudge.emoji} onDone={clearNudge} />}
       {covered && <div className={styles.privacyCover}>Little Temptation</div>}
     </div>
   );

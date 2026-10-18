@@ -7,6 +7,7 @@ import { api, mediaUrl, setToken, uploadFile } from "@/lib/api";
 import { useSession } from "@/context/SessionContext";
 import { useTheme } from "@/context/ThemeContext";
 import { applyBubble, BUBBLES } from "@/lib/bubbles";
+import { unlockDay } from "@/lib/rewards";
 import GamesScreen from "../GamesScreen";
 
 const menuItems = [
@@ -437,20 +438,31 @@ export default function MoreTab() {
             <div className={styles.bubbleGrid}>
               {BUBBLES.map((item) => {
                 const selected = selectedBubble.toLowerCase() === item.color.toLowerCase();
+                const needs = unlockDay("bubble", item.color);
+                const locked = needs > Math.max(couple?.bestStreak || 0, couple?.currentStreak || 0);
                 return (
                   <button
                     key={item.id}
                     type="button"
-                    className={`${styles.bubbleDot} ${selected ? styles.bubbleOn : ""}`}
+                    className={`${styles.bubbleDot} ${selected ? styles.bubbleOn : ""} ${locked ? styles.bubbleLocked : ""}`}
                     style={{ background: item.color }}
-                    aria-label={item.id}
+                    aria-label={locked ? `${item.id}, unlocks at a ${needs}-day streak` : item.id}
                     onClick={() => {
+                      if (locked) {
+                        Swal.fire({
+                          title: `🔒 ${needs}-day streak`,
+                          text: `Keep your streak going for ${needs} days to unlock this colour.`,
+                          confirmButtonColor: "#FF4081",
+                        });
+                        return;
+                      }
                       setSelectedBubble(item.color);
                       applyBubble(item.color);
                       saveSetting({ bubbleColor: item.color }).catch(() => undefined);
                     }}
                   >
                     {selected && <span style={{ color: item.ink }}>✓</span>}
+                    {locked && <span className={styles.bubbleLock}>🔒<small>{needs}d</small></span>}
                   </button>
                 );
               })}

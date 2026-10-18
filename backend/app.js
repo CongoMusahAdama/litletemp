@@ -12,6 +12,11 @@ const bucketRoutes = require('./routes/bucket');
 const storyRoutes = require('./routes/stories');
 const uploadRoutes = require('./routes/uploads');
 const pushRoutes = require('./routes/push');
+const dailyRoutes = require('./routes/daily');
+const nudgeRoutes = require('./routes/nudge');
+const memoryRoutes = require('./routes/memories');
+const gameRoutes = require('./routes/games');
+const snapRoutes = require('./routes/snaps');
 const Upload = require('./models/Upload');
 const { verifyUpload } = require('./lib/present');
 const { log } = require('./lib/log');
@@ -63,6 +68,11 @@ function createApp() {
   app.use('/api/stories', storyRoutes);
   app.use('/api/uploads', uploadRoutes);
   app.use('/api/push', pushRoutes);
+  app.use('/api/daily', dailyRoutes);
+  app.use('/api/nudge', nudgeRoutes);
+  app.use('/api/memories', memoryRoutes);
+  app.use('/api/games', gameRoutes);
+  app.use('/api/snaps', snapRoutes);
 
   app.use((error, req, res, _next) => {
     log('error', error.message || 'request failed', {

@@ -1,4 +1,5 @@
 const express = require('express');
+const { bubbleUnlocked } = require('../lib/rewards');
 const bcrypt = require('bcryptjs');
 const Message = require('../models/Message');
 const JournalEntry = require('../models/JournalEntry');
@@ -40,6 +41,9 @@ router.patch('/', async (req, res, next) => {
     if (language) req.user.language = String(language).slice(0, 40);
     if (theme === 'light' || theme === 'dark') req.user.theme = theme;
     if (typeof bubbleColor === 'string' && /^#[0-9A-Fa-f]{6}$/.test(bubbleColor)) {
+      if (!bubbleUnlocked(bubbleColor, req.couple)) {
+        return res.status(403).json({ error: 'Keep your streak going to unlock this colour' });
+      }
       req.user.bubbleColor = bubbleColor.toUpperCase();
     }
     if (pin !== undefined) {

@@ -82,6 +82,7 @@ function presentCouple(couple, viewer) {
     expectedPartnerName: couple.expectedPartnerName || '',
     anniversary: couple.anniversary,
     currentStreak: couple.currentStreak,
+    bestStreak: Math.max(couple.bestStreak || 0, couple.currentStreak || 0),
     wallpaperUrl: publicMedia(couple.wallpaperUrl || ''),
     partnerId: partnerId || null,
   };

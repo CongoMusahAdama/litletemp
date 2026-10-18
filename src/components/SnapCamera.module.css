@@ -22,6 +22,16 @@
   overflow: hidden;
   border-radius: 0 0 28px 28px;
   container-type: inline-size;
+  background: #111;
+}
+
+/* The stream feeds the canvas; the element itself stays out of sight. */
+.hiddenVideo {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .feed {
@@ -30,10 +40,8 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  background: #111;
+  display: block;
 }
-
-.mirror { transform: scaleX(-1); }
 
 .tint {
   position: absolute;
@@ -54,6 +62,19 @@
   50% { transform: translate(-50%, -58%); }
 }
 
+.snapLabel {
+  position: absolute;
+  left: 50%;
+  top: 72%;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  font-size: 7.5cqw;
+  font-weight: 800;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+.snapLabelBig { font-size: 16cqw; letter-spacing: -0.03em; }
+
 .filterName {
   position: absolute;
   left: 50%;
@@ -71,6 +92,51 @@
   0% { opacity: 0; transform: translate(-50%, -40%); }
   20% { opacity: 1; transform: translate(-50%, -50%); }
   70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.filterDots {
+  position: absolute;
+  top: calc(66px + env(safe-area-inset-top));
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  pointer-events: none;
+}
+.filterDots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+.filterDots .dotOn { background: #fff; transform: scale(1.4); }
+.filterDots .dotLocked { background: rgba(255, 255, 255, 0.15); }
+
+.lensNote,
+.swipeTip,
+.savedTip {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 8px 14px;
+  border-radius: 100px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: none;
+}
+.lensNote { bottom: 16px; white-space: normal; text-align: center; width: max-content; max-width: 86%; }
+.swipeTip { bottom: 16px; animation: tipFade 3s ease forwards; }
+.savedTip { bottom: 56px; background: rgba(255, 64, 129, 0.9); animation: tipFade 2.4s ease forwards; }
+
+@keyframes tipFade {
+  0% { opacity: 0; }
+  15%, 75% { opacity: 1; }
   100% { opacity: 0; }
 }
 
@@ -110,74 +176,113 @@
   cursor: pointer;
 }
 .round svg { width: 22px; height: 22px; }
+.roundOn { background: #FF4081; }
 
+.spin {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Live controls: lens carousel around the shutter ── */
 .controls {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
-  padding: 14px 0 calc(18px + env(safe-area-inset-bottom));
-}
-
-.filterStrip {
-  width: 100%;
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  padding: 0 16px;
-  scrollbar-width: none;
-}
-.filterStrip::-webkit-scrollbar { display: none; }
-
-.filterChip {
-  flex-shrink: 0;
-  border: 0;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.7);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   gap: 6px;
-  font-family: inherit;
-  cursor: pointer;
+  padding: 10px 0 calc(12px + env(safe-area-inset-bottom));
 }
-.filterChip span {
-  width: 48px;
-  height: 48px;
+
+.lensName {
+  font-size: 13px;
+  font-weight: 800;
+  animation: tipFade 1.6s ease forwards;
+}
+
+.railWrap {
+  position: relative;
+  width: 100%;
+  height: 92px;
+}
+
+.rail {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 100%;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  padding: 0 calc(50% - 30px);
+}
+.rail::-webkit-scrollbar { display: none; }
+
+.lensItem {
+  flex: 0 0 60px;
+  width: 60px;
+  height: 60px;
+  border: 0;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.14);
+  font-size: 30px;
+  line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
-  transition: transform 0.15s ease, border-color 0.15s ease;
+  scroll-snap-align: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
 }
-.filterChip small { font-size: 11px; font-weight: 700; }
+.lensItemOn { transform: scale(1.12); background: rgba(255, 255, 255, 0.24); }
 
-.filterChipOn { color: #fff; }
-.filterChipOn span { border-color: #FF4081; transform: scale(1.12); }
-
+/* The ring sits over the centred lens; tapping it takes the snap. */
 .shutter {
-  width: 78px;
-  height: 78px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 84px;
+  height: 84px;
+  transform: translate(-50%, -50%);
   border-radius: 50%;
   border: 5px solid #fff;
   background: transparent;
-  padding: 5px;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15);
   cursor: pointer;
-}
-.shutter span {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  background: #fff;
   transition: transform 0.1s ease;
 }
-.shutter:active span { transform: scale(0.85); }
+.shutter:active { transform: translate(-50%, -50%) scale(0.9); }
 .shutter:disabled { opacity: 0.4; }
 
+.bottomRow {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  padding: 0 16px;
+}
+
+.memoriesBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 100px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.memoriesBtn svg { width: 16px; height: 16px; }
+
+/* ── Review bar after the snap ── */
 .reviewBar {
   flex-shrink: 0;
   display: flex;
@@ -187,7 +292,6 @@
   padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
 }
 
-.retake,
 .onceToggle {
   height: 46px;
   padding: 0 16px;
@@ -199,23 +303,49 @@
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+  flex-shrink: 0;
 }
 .onceOn { background: #fff; color: #111; }
 
 .sendSnap {
+  min-width: 0;
   height: 50px;
-  padding: 0 22px;
+  padding: 0 20px;
   border: 0;
   border-radius: 100px;
   background: #FF4081;
-  color: #111;
+  color: #fff;
   font-family: inherit;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 800;
   display: flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
 }
-.sendSnap svg { width: 18px; height: 18px; }
+.sendSnap svg { width: 18px; height: 18px; flex-shrink: 0; }
 .sendSnap:disabled { opacity: 0.6; }
+
+.filterHint {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 10px 16px;
+  border-radius: 100px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  font-size: 13px;
+  font-weight: 700;
+  animation: hintFade 2.6s ease forwards;
+  pointer-events: none;
+}
+
+@keyframes hintFade {
+  0% { opacity: 0; transform: translate(-50%, 8px); }
+  12%, 80% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; }
+}
