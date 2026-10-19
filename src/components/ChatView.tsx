@@ -14,6 +14,7 @@ import SnapCamera from "./SnapCamera";
 import DailyQuestion from "./DailyQuestion";
 import { sendNudge } from "./HeartBurst";
 import { useDaily } from "@/hooks/useDaily";
+import { saveMedia } from "@/lib/saveMedia";
 
 interface Props {
   onBack: () => void;
@@ -54,6 +55,7 @@ const MenuIcon = {
   edit: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>,
   select: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><polyline points="8 12.5 11 15.5 16 9.5" /></svg>,
   trash: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>,
+  save: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12" /><polyline points="7 10 12 15 17 10" /><path d="M5 21h14" /></svg>,
   back: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>,
 };
 
@@ -140,7 +142,8 @@ export default function ChatView({ onBack }: Props) {
   const [streakHours, setStreakHours] = useState(0);
   const [draftMedia, setDraftMedia] = useState<{ file: File; kind: "image" | "video"; preview: string } | null>(null);
   const [sendingMedia, setSendingMedia] = useState(false);
-  const [viewer, setViewer] = useState<{ url: string; kind: "image" | "video" } | null>(null);
+  const [viewer, setViewer] = useState<{ url: string; kind: "image" | "video"; once?: boolean } | null>(null);
+  const [savingMedia, setSavingMedia] = useState(false);
   const [viewOnceMode, setViewOnceMode] = useState(false);
   const [partnerAvatarViewer, setPartnerAvatarViewer] = useState(false);
   const chatTitle = shownName(partner)
@@ -502,6 +505,21 @@ export default function ChatView({ onBack }: Props) {
     lastTap.current = { id: msg.id, at };
   };
 
+  const saveToPhone = async (url: string, kind: "image" | "video") => {
+    if (savingMedia) return;
+    setContextMenu(null);
+    setSavingMedia(true);
+    try {
+      const result = await saveMedia(url, kind);
+      if (result === "downloaded") setStreakNote(kind === "video" ? "Video saved to your downloads" : "Photo saved to your downloads");
+      if (result === "shared") setStreakNote("Saved 💾");
+    } catch {
+      setStreakNote("Could not save that. Try again.");
+    } finally {
+      setSavingMedia(false);
+    }
+  };
+
   const copyText = async (text: string) => {
     setContextMenu(null);
     try {
@@ -835,6 +853,9 @@ export default function ChatView({ onBack }: Props) {
               ? [{ key: "unpin", label: "Unpin", icon: MenuIcon.pin, run: handleUnpin }]
               : live ? [{ key: "pin", label: "Pin", icon: MenuIcon.pin, run: () => setPinChoices(true) }] : []),
             ...(contextMenu.isMe && live && target.type === "text" ? [{ key: "edit", label: "Edit", icon: MenuIcon.edit, run: () => handleEditMessage(target) }] : []),
+            ...(live && !target.viewOnce && target.mediaUrl && (target.type === "image" || target.type === "video")
+              ? [{ key: "save", label: "Save to phone", icon: MenuIcon.save, run: () => void saveToPhone(target.mediaUrl || "", target.type === "video" ? "video" : "image") }]
+              : []),
             { key: "select", label: "Select", icon: MenuIcon.select, run: () => startSelecting(target.id) },
             ...(contextMenu.isMe && live ? [{ key: "delete", label: "Delete", icon: MenuIcon.trash, danger: true, run: () => handleDeleteMessage(target.id) }] : []),
           ];
@@ -1029,7 +1050,7 @@ export default function ChatView({ onBack }: Props) {
                       // View-once image — recipient taps to open
                       <button type="button" className={styles.viewOnceFrame} onClick={async () => {
                         await api(`/api/chat/messages/${msg.id}/view`, { method: "POST" }).catch(() => undefined);
-                        setViewer({ url: msg.mediaUrl || "", kind: "image" });
+                        setViewer({ url: msg.mediaUrl || "", kind: "image", once: true });
                       }}>
                         <span className={styles.viewOnceIcon}>👁️</span>
                         <span className={styles.viewOnceLabel}>Photo · Tap to open once</span>
@@ -1055,7 +1076,7 @@ export default function ChatView({ onBack }: Props) {
                     msg.viewOnce && msg.from !== "me" && !msg.viewedByPartner ? (
                       <button type="button" className={styles.viewOnceFrame} onClick={async () => {
                         await api(`/api/chat/messages/${msg.id}/view`, { method: "POST" }).catch(() => undefined);
-                        setViewer({ url: msg.mediaUrl || "", kind: "video" });
+                        setViewer({ url: msg.mediaUrl || "", kind: "video", once: true });
                       }}>
                         <span className={styles.viewOnceIcon}>👁️</span>
                         <span className={styles.viewOnceLabel}>Video · Tap to open once</span>
@@ -1163,6 +1184,19 @@ export default function ChatView({ onBack }: Props) {
           {viewer.kind === "video"
             ? <video src={viewer.url} className={styles.lightboxMedia} controls autoPlay playsInline onClick={(event) => event.stopPropagation()} />
             : <img src={viewer.url} alt="" className={styles.lightboxMedia} onClick={(event) => event.stopPropagation()} />}
+          <div className={styles.lightboxBar} onClick={(event) => event.stopPropagation()}>
+            <button type="button" className={styles.lightboxBtn} onClick={() => setViewer(null)} aria-label="Close">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+            {viewer.once ? (
+              <span className={styles.lightboxNote}>👁️ View once · can&apos;t be saved</span>
+            ) : (
+              <button type="button" className={styles.lightboxSave} onClick={() => void saveToPhone(viewer.url, viewer.kind)} disabled={savingMedia}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12" /><polyline points="7 10 12 15 17 10" /><path d="M5 21h14" /></svg>
+                {savingMedia ? "Saving…" : "Save"}
+              </button>
+            )}
+          </div>
         </div>
       )}
 

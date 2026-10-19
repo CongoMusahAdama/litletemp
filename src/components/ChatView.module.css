@@ -1459,3 +1459,47 @@
 .callChromeHidden .callDock { transform: translateY(12px); }
 .callChromeHidden .callShade { opacity: 0; }
 .callChromeHidden .pipVideo { top: calc(16px + env(safe-area-inset-top)); }
+
+/* ── Save photo / video from the viewer ── */
+.lightboxBar {
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top));
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 2;
+}
+
+.lightboxBtn,
+.lightboxSave {
+  height: 42px;
+  border: 0;
+  border-radius: 100px;
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(10px);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.lightboxBtn { width: 42px; }
+.lightboxSave { padding: 0 16px; background: #FF4081; }
+.lightboxBtn svg,
+.lightboxSave svg { width: 20px; height: 20px; }
+.lightboxSave:disabled { opacity: 0.7; }
+
+.lightboxNote {
+  padding: 8px 14px;
+  border-radius: 100px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
