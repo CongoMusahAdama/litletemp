@@ -1116,57 +1116,74 @@
 }
 
 /* ── View-Once Media Frame ── */
-.viewOnceFrame {
+/* ── View once ── */
+.onceChip {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-width: 200px;
+  max-width: 78%;
+  padding: 10px 14px 10px 10px;
+  border: 0;
+  border-radius: 18px;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  animation: popUp 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06);
+  transition: transform 0.15s ease;
+}
+.onceChip:not(:disabled):active { transform: scale(0.97); }
+.onceChip:disabled { cursor: default; }
+
+.onceChipMe { background: var(--bubble-out, #FF4081); color: var(--bubble-ink, #1a1a1a); border-bottom-right-radius: 6px; }
+.onceChipBabe { background: var(--bubble-in); color: var(--text-primary); border-bottom-left-radius: 6px; }
+
+.onceChipIcon {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  min-width: 160px;
-  padding: 18px 20px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #1a1a1a 0%, #374151 100%);
-  color: #fff;
-  cursor: pointer;
-  transition: opacity 0.2s;
-  position: relative;
-  overflow: hidden;
+  background: rgba(255, 64, 129, 0.12);
+  color: #FF4081;
 }
-.viewOnceFrame:active { opacity: 0.8; }
+.onceChipMe .onceChipIcon { background: rgba(255, 255, 255, 0.28); color: inherit; }
 
-.viewOnceIcon {
-  font-size: 28px;
-}
+.onceChipText { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.onceChipText strong { font-size: 15px; font-weight: 700; }
+.onceChipText small { font-size: 12px; opacity: 0.7; }
 
-.viewOnceLabel {
-  font-size: 13px;
-  font-weight: 650;
-  opacity: 0.9;
+.onceChipTime {
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  opacity: 0.65;
+  white-space: nowrap;
 }
 
-/* ── View-Once Toggle in Draft Preview ── */
-.viewOnceToggle {
-  padding: 8px 14px;
-  border-radius: 100px;
-  font-size: 13px;
-  font-weight: 650;
-  background: rgba(255,255,255,0.15);
-  color: #fff;
-  border: 1.5px solid rgba(255,255,255,0.3);
-  transition: all 0.2s;
-}
+.onceChipOpened .onceChipIcon { background: rgba(0, 0, 0, 0.06); color: inherit; opacity: 0.55; }
+.onceChipOpened .onceChipText strong { opacity: 0.75; }
 
+/* ── View-once toggle in the photo/video preview ── */
+.viewOnceToggle,
 .viewOnceToggleOn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   padding: 8px 14px;
   border-radius: 100px;
   font-size: 13px;
   font-weight: 700;
-  background: #6366f1;
   color: #fff;
-  border: 1.5px solid #6366f1;
-  box-shadow: 0 3px 12px rgba(99,102,241,0.4);
   transition: all 0.2s;
 }
+.viewOnceToggle { background: rgba(255,255,255,0.15); border: 1.5px solid rgba(255,255,255,0.3); }
+.viewOnceToggleOn { background: #FF4081; border: 1.5px solid #FF4081; box-shadow: 0 3px 12px rgba(255, 64, 129, 0.4); }
 
 /* Screenshot protection overlay hint */
 .messages {
@@ -1496,6 +1513,9 @@
 .lightboxSave:disabled { opacity: 0.7; }
 
 .lightboxNote {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 8px 14px;
   border-radius: 100px;
   background: rgba(255, 255, 255, 0.14);

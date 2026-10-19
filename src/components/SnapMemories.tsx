@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import styles from "./SnapMemories.module.css";
 import { api, mediaUrl } from "@/lib/api";
+import ViewOnceIcon from "./ViewOnceIcon";
 
 type SavedSnap = { id: string; mediaUrl: string; sentCount: number; createdAt: string };
 
@@ -109,7 +110,8 @@ export default function SnapMemories({ partnerName, onClose, onSent }: Props) {
           {error && <p className={styles.error}>{error}</p>}
           <div className={styles.viewerBar}>
             <button type="button" className={`${styles.once} ${viewOnce ? styles.onceOn : ""}`} onClick={() => setViewOnce((v) => !v)}>
-              👁️ {viewOnce ? "View once" : "Keep in chat"}
+              <ViewOnceIcon size={18} />
+              {viewOnce ? "View once" : "Keep in chat"}
             </button>
             <button type="button" className={styles.send} onClick={() => void send()} disabled={busy}>
               {busy ? "Sending…" : `Send to ${partnerName} 🔥`}

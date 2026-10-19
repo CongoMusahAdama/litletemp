@@ -15,6 +15,7 @@ import DailyQuestion from "./DailyQuestion";
 import { sendNudge } from "./HeartBurst";
 import { useDaily } from "@/hooks/useDaily";
 import { saveMedia } from "@/lib/saveMedia";
+import ViewOnceIcon from "./ViewOnceIcon";
 
 interface Props {
   onBack: () => void;
@@ -1046,22 +1047,15 @@ export default function ChatView({ onBack }: Props) {
                   )}
 
                   {msg.type === "image" && (
-                    msg.viewOnce && msg.from !== "me" && !msg.viewedByPartner ? (
-                      // View-once image — recipient taps to open
-                      <button type="button" className={styles.viewOnceFrame} onClick={async () => {
-                        await api(`/api/chat/messages/${msg.id}/view`, { method: "POST" }).catch(() => undefined);
-                        setViewer({ url: msg.mediaUrl || "", kind: "image", once: true });
-                      }}>
-                        <span className={styles.viewOnceIcon}>👁️</span>
-                        <span className={styles.viewOnceLabel}>Photo · Tap to open once</span>
-                        <span className={styles.mediaTime}>{msg.time}</span>
-                      </button>
-                    ) : msg.viewOnce && (msg.viewedByPartner || msg.from === "me") ? (
-                      // View-once already opened or is sender's own
-                      <div className={`${styles.bubble} ${msg.from === "me" ? styles.bubbleMe : styles.bubbleBabe}`} style={{ opacity: 0.7, fontStyle: 'italic' }}>
-                        <p className={styles.bubbleText}>{msg.from === "me" ? "📷 Photo · View once sent" : "📷 Photo · Opened"}</p>
-                        <span className={styles.bubbleTime}>{msg.time}{msg.from === "me" && <DoubleCheck read={msg.read} />}</span>
-                      </div>
+                    msg.viewOnce ? (
+                      <OnceChip
+                        msg={msg}
+                        label="Photo"
+                        onOpen={async () => {
+                          await api(`/api/chat/messages/${msg.id}/view`, { method: "POST" }).catch(() => undefined);
+                          setViewer({ url: msg.mediaUrl || "", kind: "image", once: true });
+                        }}
+                      />
                     ) : msg.mediaUrl ? (
                       <ChatPhoto src={msg.mediaUrl} onOpen={(url) => setViewer({ url, kind: "image" })}>
                         <span className={styles.mediaTime}>
@@ -1073,20 +1067,15 @@ export default function ChatView({ onBack }: Props) {
                   )}
 
                   {msg.type === "video" && (
-                    msg.viewOnce && msg.from !== "me" && !msg.viewedByPartner ? (
-                      <button type="button" className={styles.viewOnceFrame} onClick={async () => {
-                        await api(`/api/chat/messages/${msg.id}/view`, { method: "POST" }).catch(() => undefined);
-                        setViewer({ url: msg.mediaUrl || "", kind: "video", once: true });
-                      }}>
-                        <span className={styles.viewOnceIcon}>👁️</span>
-                        <span className={styles.viewOnceLabel}>Video · Tap to open once</span>
-                        <span className={styles.mediaTime}>{msg.time}</span>
-                      </button>
-                    ) : msg.viewOnce && (msg.viewedByPartner || msg.from === "me") ? (
-                      <div className={`${styles.bubble} ${msg.from === "me" ? styles.bubbleMe : styles.bubbleBabe}`} style={{ opacity: 0.7, fontStyle: 'italic' }}>
-                        <p className={styles.bubbleText}>{msg.from === "me" ? "🎥 Video · View once sent" : "🎥 Video · Opened"}</p>
-                        <span className={styles.bubbleTime}>{msg.time}{msg.from === "me" && <DoubleCheck read={msg.read} />}</span>
-                      </div>
+                    msg.viewOnce ? (
+                      <OnceChip
+                        msg={msg}
+                        label="Video"
+                        onOpen={async () => {
+                          await api(`/api/chat/messages/${msg.id}/view`, { method: "POST" }).catch(() => undefined);
+                          setViewer({ url: msg.mediaUrl || "", kind: "video", once: true });
+                        }}
+                      />
                     ) : msg.mediaUrl ? (
                       <button type="button" className={styles.mediaFrame} onClick={() => setViewer({ url: msg.mediaUrl || "", kind: "video" })}>
                         <video src={msg.mediaUrl} className={styles.mediaImg} muted playsInline preload="metadata" />
@@ -1100,21 +1089,17 @@ export default function ChatView({ onBack }: Props) {
                   )}
 
                   {msg.type === "voice" && (
-                    msg.viewOnce && msg.from !== "me" && !msg.viewedByPartner ? (
-                      <div className={`${styles.bubble} ${styles.bubbleBabe}`}>
-                        <button type="button" style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', fontSize: 14, color: 'inherit' }}
-                          onClick={async () => {
-                            await api(`/api/chat/messages/${msg.id}/view`, { method: "POST" }).catch(() => undefined);
-                          }}>
-                          <span>👁️</span><span>Voice · Tap to play once</span>
-                        </button>
-                        <span className={styles.bubbleTime}>{msg.time}</span>
-                      </div>
-                    ) : msg.viewOnce && (msg.viewedByPartner || msg.from === "me") ? (
-                      <div className={`${styles.bubble} ${msg.from === "me" ? styles.bubbleMe : styles.bubbleBabe}`} style={{ opacity: 0.7, fontStyle: 'italic' }}>
-                        <p className={styles.bubbleText}>{msg.from === "me" ? "🎙️ Voice · View once sent" : "🎙️ Voice · Played"}</p>
-                        <span className={styles.bubbleTime}>{msg.time}{msg.from === "me" && <DoubleCheck read={msg.read} />}</span>
-                      </div>
+                    msg.viewOnce ? (
+                      <OnceChip
+                        msg={msg}
+                        label="Voice note"
+                        openedLabel="Played"
+                        onOpen={async () => {
+                          const audio = new Audio(msg.mediaUrl || "");
+                          await audio.play().catch(() => undefined);
+                          await api(`/api/chat/messages/${msg.id}/view`, { method: "POST" }).catch(() => undefined);
+                        }}
+                      />
                     ) : msg.mediaUrl ? (
                       <div className={`${styles.bubble} ${msg.from === "me" ? styles.bubbleMe : styles.bubbleBabe}`}>
                         <VoiceNote src={msg.mediaUrl} />
@@ -1170,7 +1155,8 @@ export default function ChatView({ onBack }: Props) {
               className={viewOnceMode ? styles.viewOnceToggleOn : styles.viewOnceToggle}
               onClick={() => setViewOnceMode(v => !v)}
             >
-              👁️ {viewOnceMode ? "View once ON" : "View once"}
+              <ViewOnceIcon size={18} />
+              {viewOnceMode ? "View once on" : "View once"}
             </button>
             <button type="button" className={styles.previewSend} onClick={sendDraft} disabled={sendingMedia}>
               {sendingMedia ? "Sending..." : "Send"}
@@ -1189,7 +1175,7 @@ export default function ChatView({ onBack }: Props) {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
             </button>
             {viewer.once ? (
-              <span className={styles.lightboxNote}>👁️ View once · can&apos;t be saved</span>
+              <span className={styles.lightboxNote}><ViewOnceIcon size={16} /> View once · can&apos;t be saved</span>
             ) : (
               <button type="button" className={styles.lightboxSave} onClick={() => void saveToPhone(viewer.url, viewer.kind)} disabled={savingMedia}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12" /><polyline points="7 10 12 15 17 10" /><path d="M5 21h14" /></svg>
@@ -1462,6 +1448,31 @@ function VoiceNote({ src }: { src: string }) {
       </div>
       <span className={styles.voiceDur}>{clock(playing || progress ? (duration * progress) : duration)}</span>
     </div>
+  );
+}
+
+function OnceChip({ msg, label, openedLabel = "Opened", onOpen }: { msg: Message; label: string; openedLabel?: string; onOpen: () => void }) {
+  const mine = msg.from === "me";
+  const opened = Boolean(msg.viewedByPartner);
+  const canOpen = !mine && !opened;
+  const status = mine ? (opened ? openedLabel : "View once") : opened ? openedLabel : "Tap to open · once";
+  return (
+    <button
+      type="button"
+      className={`${styles.onceChip} ${mine ? styles.onceChipMe : styles.onceChipBabe} ${opened ? styles.onceChipOpened : ""}`}
+      onClick={canOpen ? onOpen : undefined}
+      disabled={!canOpen}
+    >
+      <span className={styles.onceChipIcon}><ViewOnceIcon size={26} opened={opened} /></span>
+      <span className={styles.onceChipText}>
+        <strong>{label}</strong>
+        <small>{status}</small>
+      </span>
+      <span className={styles.onceChipTime}>
+        {msg.time}
+        {mine && <DoubleCheck read={msg.read} />}
+      </span>
+    </button>
   );
 }
 

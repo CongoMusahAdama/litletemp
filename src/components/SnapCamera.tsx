@@ -8,6 +8,7 @@ import { unlockDay } from "@/lib/rewards";
 import { LENSES, buildFace, type Point } from "@/lib/lenses";
 import { FILTERS, cssFilter, labelText, paintFilter, type SnapFilter } from "@/lib/snapFilters";
 import SnapMemories from "./SnapMemories";
+import ViewOnceIcon from "./ViewOnceIcon";
 
 interface Props {
   onClose: () => void;
@@ -366,7 +367,8 @@ export default function SnapCamera({ onClose, onSent, bestStreak, partnerName }:
       {shot ? (
         <div className={styles.reviewBar}>
           <button type="button" className={`${styles.onceToggle} ${viewOnce ? styles.onceOn : ""}`} onClick={() => setViewOnce((v) => !v)}>
-            👁️ {viewOnce ? "View once" : "Keep in chat"}
+            <ViewOnceIcon size={18} />
+            {viewOnce ? "View once" : "Keep in chat"}
           </button>
           <button type="button" className={styles.sendSnap} onClick={() => void send()} disabled={busy !== ""}>
             {busy === "send" ? "Sending…" : `Send to ${partnerName}`}
