@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { Fragment, useState, useRef, useEffect, type ReactNode } from "react";
 import { io, Socket } from "socket.io-client";
 import styles from "./ChatView.module.css";
 import { API_URL, api, getToken, mediaUrl, shownName, uploadFile } from "@/lib/api";
@@ -16,6 +16,7 @@ import { sendNudge } from "./HeartBurst";
 import { useDaily } from "@/hooks/useDaily";
 import { saveMedia } from "@/lib/saveMedia";
 import ViewOnceIcon from "./ViewOnceIcon";
+import { clockTime, dayLabel, sameDay } from "@/lib/chatDates";
 
 interface Props {
   onBack: () => void;
@@ -120,6 +121,7 @@ export default function ChatView({ onBack }: Props) {
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [recordLevels, setRecordLevels] = useState<number[]>([]);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Wallpaper state
@@ -190,6 +192,7 @@ export default function ChatView({ onBack }: Props) {
     id: String(data.id),
     mediaUrl: data.mediaUrl ? mediaUrl(data.mediaUrl) : undefined,
     replyToId: data.replyToId ? String(data.replyToId) : null,
+    time: data.createdAt ? clockTime(data.createdAt) : data.time,
     from: String(data.senderId) === String(user?.id) ? "me" : "babe",
   });
 
@@ -426,7 +429,12 @@ export default function ChatView({ onBack }: Props) {
       const processor = ctx.createScriptProcessor(4096, 1, 1);
       const chunks: Float32Array[] = [];
       processor.onaudioprocess = (event) => {
-        chunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+        const samples = event.inputBuffer.getChannelData(0);
+        chunks.push(new Float32Array(samples));
+        let sum = 0;
+        for (let i = 0; i < samples.length; i += 8) sum += samples[i] * samples[i];
+        const level = Math.min(1, Math.sqrt(sum / (samples.length / 8)) * 6);
+        setRecordLevels((prev) => [...prev.slice(-47), level]);
       };
       const mute = ctx.createGain();
       mute.gain.value = 0;
@@ -437,6 +445,7 @@ export default function ChatView({ onBack }: Props) {
       recRef.current = { stream, ctx, processor, chunks, started };
       setIsRecording(true);
       setRecordingTime(0);
+      setRecordLevels([]);
       recordingTimerRef.current = setInterval(() => {
         const rec = recRef.current;
         if (rec) setRecordingTime(Math.floor((Date.now() - rec.started) / 1000));
@@ -622,6 +631,15 @@ export default function ChatView({ onBack }: Props) {
     const timer = window.setTimeout(() => setPin(null), wait);
     return () => window.clearTimeout(timer);
   }, [pin]);
+
+  // Show "Today", "Yesterday", a weekday or a date above the first message of each day.
+  const dayStarts = new Map<string, string>();
+  let lastDay: string | undefined;
+  messages.forEach((msg) => {
+    if (!msg.createdAt) return;
+    if (!lastDay || !sameDay(lastDay, msg.createdAt)) dayStarts.set(msg.id, dayLabel(msg.createdAt));
+    lastDay = msg.createdAt;
+  });
 
   return (
     <div ref={rootRef} className={styles.chatView}>
@@ -989,9 +1007,10 @@ export default function ChatView({ onBack }: Props) {
             <p>The streak ended. Message each other today to start a new one.</p>
           </div>
         )}
-        <div className={styles.dateLabel}>Today</div>
-
-        {messages.map((msg) => {
+        {messages.map((msg) => (
+          <Fragment key={`day-${msg.id}`}>
+          {dayStarts.has(msg.id) && <div className={styles.dateLabel}>{dayStarts.get(msg.id)}</div>}
+          {((): ReactNode => {
           const repliedMsg = msg.replyToId ? messages.find(m => m.id === msg.replyToId) : null;
 
           // System message (mood change etc.)
@@ -1102,7 +1121,7 @@ export default function ChatView({ onBack }: Props) {
                       />
                     ) : msg.mediaUrl ? (
                       <div className={`${styles.bubble} ${msg.from === "me" ? styles.bubbleMe : styles.bubbleBabe}`}>
-                        <VoiceNote src={msg.mediaUrl} />
+                        <VoiceNote src={msg.mediaUrl} mine={msg.from === "me"} />
                         <span className={styles.bubbleTime}>
                           {msg.time}
                           {msg.from === "me" && <DoubleCheck read={msg.read} />}
@@ -1125,7 +1144,9 @@ export default function ChatView({ onBack }: Props) {
               )}
             </div>
           );
-        })}
+          })()}
+          </Fragment>
+        ))}
 
         {isTyping && (
           <div className={`${styles.row} ${styles.rowBabe}`}>
@@ -1265,12 +1286,23 @@ export default function ChatView({ onBack }: Props) {
         <div className={styles.inputBar} style={{ borderTop: 'none' }}>
           {isRecording ? (
             <div className={styles.recordingBar}>
-              <button type="button" className={styles.recordCancel} onClick={() => finishRecording(false)}>Cancel</button>
-              <div className={styles.recordTime}>
-                <span className={styles.recordDot} />
-                {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")}
+              <button type="button" className={styles.recordCancel} onClick={() => finishRecording(false)} aria-label="Delete recording">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
+              </button>
+              <div className={styles.recordPill}>
+                <span className={styles.recordTime}>
+                  <span className={styles.recordDot} />
+                  {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")}
+                </span>
+                <span className={styles.recordWave} aria-hidden="true">
+                  {Array.from({ length: 48 }, (_, i) => recordLevels[recordLevels.length - 48 + i] ?? 0).map((level, i) => (
+                    <span key={i} style={{ height: `${Math.max(3, level * 26)}px` }} />
+                  ))}
+                </span>
               </div>
-              <button type="button" className={styles.previewSend} onClick={() => finishRecording(true)}>Send</button>
+              <button type="button" className={styles.recordSend} onClick={() => finishRecording(true)} aria-label="Send voice note">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 11.5l17-8-7 18-2.2-7.2L3 11.5z" /></svg>
+              </button>
             </div>
           ) : (
             <>
@@ -1410,21 +1442,79 @@ function encodeWav(chunks: Float32Array[], sampleRate: number) {
   return new Blob([buffer], { type: "audio/wav" });
 }
 
-function VoiceNote({ src }: { src: string }) {
+const PEAK_COUNT = 34;
+const peakCache = new Map<string, number[]>();
+const FALLBACK_PEAKS = Array.from({ length: PEAK_COUNT }, (_, i) => 0.25 + 0.55 * Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.6)));
+const SPEEDS = [1, 1.5, 2];
+
+// Real waveform of the recording, worked out once per file and remembered.
+async function loadPeaks(src: string) {
+  const cached = peakCache.get(src);
+  if (cached) return cached;
+  const context = noteAudio();
+  if (!context) return FALLBACK_PEAKS;
+  const data = await (await fetch(src)).arrayBuffer();
+  const audio = await context.decodeAudioData(data);
+  const samples = audio.getChannelData(0);
+  const block = Math.max(1, Math.floor(samples.length / PEAK_COUNT));
+  const peaks: number[] = [];
+  for (let i = 0; i < PEAK_COUNT; i += 1) {
+    let sum = 0;
+    for (let j = 0; j < block; j += 16) sum += Math.abs(samples[i * block + j] || 0);
+    peaks.push(sum / (block / 16));
+  }
+  const max = Math.max(...peaks, 0.0001);
+  const scaled = peaks.map((peak) => Math.max(0.12, peak / max));
+  peakCache.set(src, scaled);
+  return scaled;
+}
+
+function VoiceNote({ src, mine }: { src: string; mine: boolean }) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const waveRef = useRef<HTMLDivElement>(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
-  const heights = [4, 8, 14, 10, 18, 8, 12, 6, 16, 9, 13, 7, 15, 5, 11, 8, 17, 6, 10, 14];
+  const [speed, setSpeed] = useState(1);
+  const [peaks, setPeaks] = useState<number[]>(() => peakCache.get(src) || FALLBACK_PEAKS);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadPeaks(src)
+      .then((next) => { if (!cancelled) setPeaks(next); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [src]);
+
   const toggle = () => {
     const audio = audioRef.current;
     if (!audio) return;
     if (audio.paused) void audio.play().catch(() => setPlaying(false));
     else audio.pause();
   };
+
+  const seek = (clientX: number) => {
+    const audio = audioRef.current;
+    const wave = waveRef.current;
+    if (!audio || !wave || !audio.duration) return;
+    const rect = wave.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    audio.currentTime = ratio * audio.duration;
+    setProgress(ratio);
+  };
+
+  const cycleSpeed = () => {
+    const next = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
+    setSpeed(next);
+    if (audioRef.current) audioRef.current.playbackRate = next;
+  };
+
   const clock = (value: number) => `${Math.floor(value / 60)}:${Math.floor(value % 60).toString().padStart(2, "0")}`;
+  const shown = playing || progress > 0 ? duration * progress : duration;
+
   return (
-    <div className={styles.voiceMsg}>
+    // Taps here control playback; they shouldn't count toward double-tap-for-menu.
+    <div className={`${styles.voiceMsg} ${mine ? styles.voiceMine : ""}`} onClick={(event) => event.stopPropagation()}>
       <audio
         ref={audioRef}
         src={src}
@@ -1432,21 +1522,59 @@ function VoiceNote({ src }: { src: string }) {
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
         onEnded={() => { setPlaying(false); setProgress(0); }}
-        onLoadedMetadata={(event) => setDuration(event.currentTarget.duration || 0)}
+        onLoadedMetadata={(event) => {
+          const value = event.currentTarget.duration;
+          setDuration(Number.isFinite(value) ? value : 0);
+          event.currentTarget.playbackRate = speed;
+        }}
         onTimeUpdate={(event) => {
           const audio = event.currentTarget;
-          if (audio.duration) setProgress(audio.currentTime / audio.duration);
+          if (Number.isFinite(audio.duration) && audio.duration) {
+            setDuration(audio.duration);
+            setProgress(audio.currentTime / audio.duration);
+          }
         }}
       />
       <button type="button" className={styles.playBtn} onClick={toggle} aria-label={playing ? "Pause" : "Play"}>
-        {playing ? "❚❚" : "▶"}
+        {playing ? (
+          <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.2" /><rect x="14" y="5" width="4" height="14" rx="1.2" /></svg>
+        ) : (
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" /></svg>
+        )}
       </button>
-      <div className={styles.waveform}>
-        {heights.map((height, index) => (
-          <div key={index} className={styles.bar} style={{ height, opacity: index / heights.length <= progress ? 1 : 0.35 }} />
-        ))}
+      <div className={styles.voiceBody}>
+        <div
+          ref={waveRef}
+          className={styles.waveform}
+          onClick={(event) => seek(event.clientX)}
+          onTouchMove={(event) => seek(event.touches[0].clientX)}
+          role="slider"
+          aria-label="Voice note position"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progress * 100)}
+        >
+          {peaks.map((peak, index) => (
+            <span
+              key={index}
+              className={`${styles.bar} ${(index + 0.5) / peaks.length <= progress ? styles.barPlayed : ""}`}
+              style={{ height: `${Math.round(4 + peak * 20)}px` }}
+            />
+          ))}
+          <span className={styles.waveKnob} style={{ left: `${progress * 100}%` }} />
+        </div>
+        <div className={styles.voiceMeta}>
+          <span className={styles.voiceDur}>{clock(shown)}</span>
+          {(playing || speed !== 1) && (
+            <button type="button" className={styles.speedBtn} onClick={cycleSpeed} aria-label="Playback speed">
+              {speed}×
+            </button>
+          )}
+        </div>
       </div>
-      <span className={styles.voiceDur}>{clock(playing || progress ? (duration * progress) : duration)}</span>
+      <span className={styles.voiceMic} aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 15a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v7a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2z" /></svg>
+      </span>
     </div>
   );
 }

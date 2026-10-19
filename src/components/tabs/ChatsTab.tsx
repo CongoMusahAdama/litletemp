@@ -9,6 +9,7 @@ import { useDaily } from "@/hooks/useDaily";
 import DailyQuestion from "../DailyQuestion";
 import OnThisDay from "../OnThisDay";
 import { sendNudge } from "../HeartBurst";
+import { listTime } from "@/lib/chatDates";
 
 interface Props {
   onOpenChat: () => void;
@@ -17,7 +18,7 @@ interface Props {
 type Summary = {
   partner: { id: string; name: string; username?: string; avatarUrl: string } | null;
   expectedPartnerName: string;
-  lastMessage: { text?: string; type: string; time: string; senderId: string } | null;
+  lastMessage: { text?: string; type: string; time: string; senderId: string; createdAt?: string } | null;
   unread: number;
   streak: number;
   partnerOnline: boolean;
@@ -253,7 +254,7 @@ export default function ChatsTab({ onOpenChat }: Props) {
                 {partnerName}
                 <span className={styles.streak}>🔥 {summary?.streak ?? couple?.currentStreak ?? 0}</span>
               </span>
-              <span className={`${styles.time} ${summary?.unread ? styles.timeUnread : ""}`}>{summary?.lastMessage?.time || ""}</span>
+              <span className={`${styles.time} ${summary?.unread ? styles.timeUnread : ""}`}>{summary?.lastMessage ? (summary.lastMessage.createdAt ? listTime(summary.lastMessage.createdAt) : summary.lastMessage.time) : ""}</span>
             </div>
             <div className={styles.bottomRow}>
               <span className={styles.lastMsg}>{preview}</span>

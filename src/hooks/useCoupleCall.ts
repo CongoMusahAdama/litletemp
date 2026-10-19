@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
+import { playConnectBeep, playEndBeep, startRingback, startRingtone } from "@/lib/callSounds";
 
 export type CallKind = "voice" | "video";
 export type CallPhase = "idle" | "calling" | "incoming" | "connected";
@@ -279,6 +280,19 @@ export function useCoupleCall(socket: Socket | null) {
     attachLocal();
     attachRemote();
   }, [phase, callType]);
+
+  // Ringing, ringtone and the little beeps when a call connects or ends.
+  const prevPhase = useRef<CallPhase>("idle");
+  useEffect(() => {
+    const before = prevPhase.current;
+    prevPhase.current = phase;
+    let stop: (() => void) | undefined;
+    if (phase === "calling") stop = startRingback();
+    if (phase === "incoming") stop = startRingtone();
+    if (phase === "connected" && before !== "connected") playConnectBeep();
+    if (phase === "idle" && before !== "idle") playEndBeep();
+    return () => stop?.();
+  }, [phase]);
 
   useEffect(() => {
     if (phase !== "connected") return;
