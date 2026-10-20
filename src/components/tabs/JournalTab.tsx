@@ -67,6 +67,10 @@ export default function JournalTab({ triggerNewEntry }: Props) {
   const [newTitle, setNewTitle] = useState("");
   const [newBody, setNewBody] = useState("");
   const [newMedia, setNewMedia] = useState<{ url: string; type: "image" | "video" | "audio" }[]>([]);
+  const [uploadingCount, setUploadingCount] = useState(0);
+  const [savingEntry, setSavingEntry] = useState(false);
+  const [savingWish, setSavingWish] = useState(false);
+  const [entryError, setEntryError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -135,12 +139,20 @@ export default function JournalTab({ triggerNewEntry }: Props) {
     if (!files) return;
     const picked = Array.from(files);
     e.target.value = "";
-    const uploaded = await Promise.all(picked.map(async (file) => {
+    setEntryError("");
+    setUploadingCount((count) => count + picked.length);
+    // Upload each file on its own so one failure doesn't lose the rest.
+    await Promise.all(picked.map(async (file) => {
       const type = file.type.startsWith("video/") ? "video" as const : "image" as const;
-      const saved = await uploadFile(file);
-      return { url: saved.url, type };
+      try {
+        const saved = await uploadFile(file);
+        setNewMedia(prev => [...prev, { url: saved.url, type }]);
+      } catch {
+        setEntryError("A photo or video didn't upload. Try adding it again.");
+      } finally {
+        setUploadingCount((count) => Math.max(0, count - 1));
+      }
     }));
-    setNewMedia(prev => [...prev, ...uploaded]);
   };
 
   const removeMedia = (index: number) => {
@@ -148,8 +160,10 @@ export default function JournalTab({ triggerNewEntry }: Props) {
   };
 
   const handleSave = async () => {
-    if (!newTitle.trim()) return;
+    if (!newTitle.trim() || savingEntry || uploadingCount > 0) return;
     const firstMediaUrl = newMedia.length > 0 ? newMedia[0].url : undefined;
+    setSavingEntry(true);
+    setEntryError("");
     try {
       const saved = await api<ServerEntry>("/api/journal", {
         method: "POST",
@@ -166,13 +180,17 @@ export default function JournalTab({ triggerNewEntry }: Props) {
       setNewBody("");
       setNewMedia([]);
       setShowNewEntry(false);
-    } catch {
+    } catch (error) {
       // Keep the draft open so it can be saved again.
+      setEntryError(error instanceof Error ? error.message : "Could not save. Try again.");
+    } finally {
+      setSavingEntry(false);
     }
   };
 
   const handleAddWish = async () => {
-    if (!newWishTitle.trim()) return;
+    if (!newWishTitle.trim() || savingWish) return;
+    setSavingWish(true);
     try {
       const item = await api<WishlistItem>("/api/wishlist", {
         method: "POST",
@@ -185,6 +203,8 @@ export default function JournalTab({ triggerNewEntry }: Props) {
       setNewWishImages([]);
     } catch {
       // Keep the typed wish so it can be retried.
+    } finally {
+      setSavingWish(false);
     }
   };
 
@@ -349,17 +369,22 @@ export default function JournalTab({ triggerNewEntry }: Props) {
                 type="button"
                 className={styles.photoUploadBtn}
                 onClick={() => fileInputRef.current?.click()}
+                disabled={savingEntry}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="17 8 12 3 7 8" />
-                  <line x1="12" y1="3" x2="12" y2="15" />
-                </svg>
-                <span>Add Media</span>
+                {uploadingCount > 0 ? (
+                  <span className={styles.spinnerDark} aria-hidden="true" />
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                )}
+                <span>{uploadingCount > 0 ? `Uploading ${uploadingCount}…` : "Add Media"}</span>
               </button>
             </div>
-            
-            {newMedia.length > 0 && (
+
+            {(newMedia.length > 0 || uploadingCount > 0) && (
               <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', padding: '4px 0 16px', margin: '0 24px', scrollbarWidth: 'none' }}>
                 {newMedia.map((m, idx) => (
                   <div key={idx} className={styles.photoPreview} style={{ margin: 0, flexShrink: 0, width: '100px', height: '100px' }}>
@@ -386,11 +411,24 @@ export default function JournalTab({ triggerNewEntry }: Props) {
                     )}
                   </div>
                 ))}
+                {Array.from({ length: uploadingCount }, (_, i) => (
+                  <div key={`uploading-${i}`} className={styles.uploadTile} aria-label="Uploading">
+                    <span className={styles.spinnerDark} />
+                  </div>
+                ))}
               </div>
             )}
-            
-            <button className={styles.modalSave} onClick={handleSave}>
-              Save Entry
+
+            {entryError && <p className={styles.entryError}>{entryError}</p>}
+
+            <button
+              className={styles.modalSave}
+              onClick={handleSave}
+              disabled={savingEntry || uploadingCount > 0 || !newTitle.trim()}
+            >
+              {savingEntry ? (
+                <><span className={styles.spinnerDark} aria-hidden="true" /> Saving…</>
+              ) : uploadingCount > 0 ? "Waiting for uploads…" : "Save Entry"}
             </button>
           </div>
         </div>
@@ -549,7 +587,9 @@ export default function JournalTab({ triggerNewEntry }: Props) {
                     </button>
                   )}
                 </div>
-                <button className={styles.wishlistSubmit} onClick={handleAddWish} disabled={wishUploading}>Add Wish</button>
+                <button className={styles.wishlistSubmit} onClick={handleAddWish} disabled={wishUploading || savingWish}>
+                  {savingWish ? <><span className={styles.spinnerLight} aria-hidden="true" /> Adding…</> : "Add Wish"}
+                </button>
               </div>
             </div>
 

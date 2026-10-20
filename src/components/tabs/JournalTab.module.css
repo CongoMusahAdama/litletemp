@@ -367,6 +367,49 @@
   transition: transform 0.15s ease;
 }
 .modalSave:active { transform: scale(0.97); }
+.modalSave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.modalSave:disabled { opacity: 0.6; cursor: default; transform: none; }
+
+/* ── Preloaders ── */
+.spinnerDark,
+.spinnerLight {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2.5px solid rgba(26, 26, 26, 0.2);
+  border-top-color: #1a1a1a;
+  animation: journalSpin 0.75s linear infinite;
+}
+.spinnerLight { border-color: rgba(255, 255, 255, 0.3); border-top-color: #fff; }
+@keyframes journalSpin { to { transform: rotate(360deg); } }
+
+.uploadTile {
+  width: 100px;
+  height: 100px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(90deg, var(--bg-input) 25%, var(--bg-card) 50%, var(--bg-input) 75%);
+  background-size: 200% 100%;
+  animation: uploadShimmer 1.2s ease infinite;
+}
+@keyframes uploadShimmer { to { background-position: -200% 0; } }
+
+.entryError {
+  margin: -6px 0 12px;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
 
 .photoUploadRow {
   display: flex;
@@ -468,6 +511,13 @@
   transition: transform 0.2s;
 }
 .wishlistSubmit:active { transform: scale(0.97); }
+.wishlistSubmit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.wishlistSubmit:disabled { opacity: 0.7; cursor: default; }
 
 .wishlistItem {
   background: var(--bg-card);
