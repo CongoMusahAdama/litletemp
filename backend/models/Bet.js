@@ -7,6 +7,7 @@ const betSchema = new mongoose.Schema({
   league: { type: String, required: true },
   match: {
     leagueName: String,
+    leagueLogo: String,
     kickoff: Date,
     home: { id: String, name: String, logo: String },
     away: { id: String, name: String, logo: String },

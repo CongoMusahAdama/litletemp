@@ -116,6 +116,7 @@ router.post('/bets', async (req, res, next) => {
         createdBy: req.user._id,
         match: {
           leagueName: match.leagueName,
+          leagueLogo: match.leagueLogo,
           kickoff: new Date(match.kickoff),
           home: { id: match.home.id, name: match.home.name, logo: match.home.logo },
           away: { id: match.away.id, name: match.away.name, logo: match.away.logo },

@@ -1,8 +1,9 @@
-// Fixtures, live scores and teams for the leagues below, from ESPN's public
+// Fixtures, live scores and teams for the competitions below, from ESPN's public
 // scoreboard (no API key). Everything is cached so phones never call ESPN directly.
 const LEAGUES = {
-  'eng.1': 'Premier League',
-  'esp.1': 'LaLiga',
+  'eng.1': { name: 'Premier League', logo: '/i/leaguelogos/soccer/500/23.png' },
+  'esp.1': { name: 'LaLiga', logo: '/i/leaguelogos/soccer/500/15.png' },
+  'uefa.champions': { name: 'Champions League', logo: '/i/leaguelogos/soccer/500/2.png' },
 };
 
 const BASE = 'https://site.api.espn.com/apis/site/v2/sports/soccer';
@@ -28,10 +29,15 @@ async function getJson(url) {
   return response.json();
 }
 
-// ESPN crests are 500px (~70KB); its resizer serves a 96px copy (~12KB).
-function smallLogo(url) {
-  const match = String(url || '').match(/^https:\/\/a\.espncdn\.com(\/i\/teamlogos\/[^?]+)/);
-  return match ? `https://a.espncdn.com/combiner/i?img=${match[1]}&w=96&h=96` : String(url || '');
+// ESPN crests are 500px (~70KB); its resizer serves a small copy (~12KB).
+function smallLogo(url, size = 96) {
+  const match = String(url || '').match(/^(?:https:\/\/a\.espncdn\.com)?(\/i\/(?:teamlogos|leaguelogos)\/[^?]+)/);
+  return match ? `https://a.espncdn.com/combiner/i?img=${match[1]}&w=${size}&h=${size}` : String(url || '');
+}
+
+function leagueInfo(league) {
+  const info = LEAGUES[league];
+  return { leagueName: info.name, leagueLogo: smallLogo(info.logo, 64) };
 }
 
 function side(competitor, state) {
@@ -57,7 +63,7 @@ function normalize(event, league) {
   return {
     id: String(event.id),
     league,
-    leagueName: LEAGUES[league],
+    ...leagueInfo(league),
     kickoff: event.date,
     status,
     detail: type.shortDetail || type.detail || '',
@@ -71,7 +77,7 @@ function monthKey(date) {
   return `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-// A whole month of one league in a single request (ESPN rejects day ranges).
+// A whole month of one competition in a single request (ESPN rejects day ranges).
 async function monthEvents(league, yyyymm, ttlMs) {
   return cached(`month:${league}:${yyyymm}`, ttlMs, async () => {
     const data = await getJson(`${BASE}/${league}/scoreboard?dates=${yyyymm}`);
@@ -79,7 +85,7 @@ async function monthEvents(league, yyyymm, ttlMs) {
   });
 }
 
-/** Matches from 3 days ago to 3 weeks ahead, both leagues, soonest first. */
+/** Matches from 3 days ago to 3 weeks ahead, every competition, soonest first. */
 async function getMatches() {
   const now = new Date();
   const months = new Set([monthKey(new Date(now.getTime() - 3 * DAY_MS)), monthKey(now), monthKey(new Date(now.getTime() + 21 * DAY_MS))]);
@@ -107,9 +113,14 @@ async function findMatch(league, matchId, kickoff) {
   return list.find((match) => match.id === String(matchId)) || null;
 }
 
+/**
+ * Every club you can support. A club in both its league and the Champions League
+ * (same ESPN id) is listed once under its league; the rest of Europe's
+ * Champions League clubs (Bayern, PSG…) are listed under "Champions League".
+ */
 async function getTeams() {
   return cached('teams', DAY_MS, async () => {
-    const lists = await Promise.all(Object.entries(LEAGUES).map(async ([league, leagueName]) => {
+    const lists = await Promise.all(Object.keys(LEAGUES).map(async (league) => {
       const data = await getJson(`${BASE}/${league}/teams`);
       const teams = data.sports?.[0]?.leagues?.[0]?.teams || [];
       return teams.map(({ team }) => ({
@@ -118,10 +129,17 @@ async function getTeams() {
         short: team.shortDisplayName || team.abbreviation,
         logo: smallLogo(team.logos?.[0]?.href),
         league,
-        leagueName,
+        ...leagueInfo(league),
       }));
     }));
-    return lists.flat().sort((a, b) => a.name.localeCompare(b.name));
+    const seen = new Set();
+    return lists.flat()
+      .filter((team) => {
+        if (seen.has(team.id)) return false;
+        seen.add(team.id);
+        return true;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
   });
 }
 

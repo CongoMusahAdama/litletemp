@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import styles from "./FootballScreen.module.css";
-import { api, shownName } from "@/lib/api";
+import { api, mediaUrl, shownName } from "@/lib/api";
 import { scopedSocket } from "@/lib/socket";
 import { useSession } from "@/context/SessionContext";
 import { clockTime, dayLabel } from "@/lib/chatDates";
@@ -13,6 +13,7 @@ type Match = {
   id: string;
   league: string;
   leagueName: string;
+  leagueLogo: string;
   kickoff: string;
   status: "scheduled" | "live" | "finished" | "off";
   detail: string;
@@ -20,12 +21,12 @@ type Match = {
   home: Side;
   away: Side;
 };
-type Team = { id: string; name: string; short: string; logo: string; league: string; leagueName: string };
+type Team = { id: string; name: string; short: string; logo: string; league: string; leagueName: string; leagueLogo: string };
 type Pick = { homeGoals: number | null; awayGoals: number | null; prize: string };
 type Bet = {
   id: string;
   matchId: string;
-  match: { leagueName: string; kickoff: string; home: { id: string; name: string; logo: string }; away: { id: string; name: string; logo: string } };
+  match: { leagueName: string; leagueLogo?: string; kickoff: string; home: { id: string; name: string; logo: string }; away: { id: string; name: string; logo: string } };
   status: "open" | "settled" | "void";
   result: { homeScore: number; awayScore: number; reason: string } | null;
   mine: Pick | null;
@@ -35,13 +36,12 @@ type Bet = {
   locked: boolean;
 };
 
-const PRIZES = ["🎁 A gift of my choice", "💆 A 20-minute massage", "🍕 Dinner on you", "😈 A dare of my choice", "💋 10 kisses", "🎬 I pick the movie"];
-const FILTERS = [
-  { id: "all", label: "All" },
-  { id: "ours", label: "Our teams" },
+const PRIZES = ["🎁 A gift of my choice", "💆 A 20-minute massage", "🍕 Dinner on you", "😈 A dare of my choice", "💋 10 kisses", "🎬 I pick the movie", "☕ Breakfast in bed"];
+const COMPETITIONS = [
   { id: "eng.1", label: "Premier League" },
   { id: "esp.1", label: "LaLiga" },
-] as const;
+  { id: "uefa.champions", label: "Champions League" },
+];
 
 function Crest({ src, name, size = 34 }: { src?: string; name: string; size?: number }) {
   const [broken, setBroken] = useState(false);
@@ -53,7 +53,7 @@ function Crest({ src, name, size = 34 }: { src?: string; name: string; size?: nu
 function outcomeText(home: string, away: string, h: number, a: number) {
   if (h > a) return `${home} win`;
   if (a > h) return `${away} win`;
-  return "Draw";
+  return "A draw";
 }
 
 export default function FootballScreen({ onBack }: { onBack: () => void }) {
@@ -62,7 +62,7 @@ export default function FootballScreen({ onBack }: { onBack: () => void }) {
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [bets, setBets] = useState<Bet[]>([]);
   const [tab, setTab] = useState<"matches" | "bets">("matches");
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]["id"]>("all");
+  const [filter, setFilter] = useState("all");
   const [betting, setBetting] = useState<Match | null>(null);
   const [picking, setPicking] = useState(false);
   const [error, setError] = useState("");
@@ -91,11 +91,21 @@ export default function FootballScreen({ onBack }: { onBack: () => void }) {
   }, [loadBets]);
 
   const betByMatch = useMemo(() => new Map(bets.map((bet) => [bet.matchId, bet])), [bets]);
+  const leagueLogos = useMemo(() => new Map((matches || []).map((match) => [match.league, match.leagueLogo])), [matches]);
   const involves = (match: Match, team: { id: string } | null) => Boolean(team && (match.home.id === team.id || match.away.id === team.id));
+
+  const record = {
+    won: bets.filter((bet) => bet.outcome === "won").length,
+    lost: bets.filter((bet) => bet.outcome === "lost").length,
+    tied: bets.filter((bet) => bet.outcome === "tie").length,
+  };
+  const toCollect = bets.filter((bet) => bet.outcome === "won" && !bet.paid).length;
+  const openBets = bets.filter((bet) => bet.status === "open").length;
+  const needsMe = bets.filter((bet) => bet.status === "open" && !bet.locked && bet.theirs && !bet.mine).length;
 
   const visible = (matches || []).filter((match) => {
     if (filter === "ours") return involves(match, myTeam) || involves(match, theirTeam);
-    if (filter === "eng.1" || filter === "esp.1") return match.league === filter;
+    if (filter !== "all") return match.league === filter;
     return true;
   });
   // Live first, then upcoming, then recent results.
@@ -112,33 +122,48 @@ export default function FootballScreen({ onBack }: { onBack: () => void }) {
     else groups.push({ label, items: [match] });
   });
 
-  const needsMe = bets.filter((bet) => bet.status === "open" && !bet.locked && bet.theirs && !bet.mine).length;
-
   return (
     <div className={styles.page}>
-      <header className={styles.header}>
-        <button type="button" className={styles.back} onClick={onBack} aria-label="Back">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
-        </button>
-        <h1 className={styles.title}>Match bets ⚽</h1>
-      </header>
+      <section className={styles.hero}>
+        <div className={styles.pitchLines} aria-hidden="true" />
+        <header className={styles.header}>
+          <button type="button" className={styles.back} onClick={onBack} aria-label="Back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+          </button>
+          <h1 className={styles.title}>Match bets</h1>
+          <span className={styles.headerSpacer} />
+        </header>
 
-      <div className={styles.teams}>
-        <button type="button" className={styles.teamCard} onClick={() => setPicking(true)}>
-          {myTeam ? <Crest src={myTeam.logo} name={myTeam.name} size={38} /> : <span className={styles.teamPlus}>+</span>}
-          <span className={styles.teamText}>
-            <small>You support</small>
-            <strong>{myTeam?.name || "Pick your team"}</strong>
-          </span>
-        </button>
-        <div className={styles.teamCard}>
-          {theirTeam ? <Crest src={theirTeam.logo} name={theirTeam.name} size={38} /> : <span className={styles.teamPlus}>?</span>}
-          <span className={styles.teamText}>
-            <small>{partnerName} supports</small>
-            <strong>{theirTeam?.name || "Not picked yet"}</strong>
-          </span>
+        <div className={styles.rivalry}>
+          <button type="button" className={styles.fan} onClick={() => setPicking(true)} aria-label="Change your team">
+            <span className={styles.fanCrest}>
+              {myTeam ? <Crest src={myTeam.logo} name={myTeam.name} size={46} /> : <span className={styles.fanPlus}>+</span>}
+              {user?.avatarUrl && <img className={styles.fanFace} src={mediaUrl(user.avatarUrl)} alt="" />}
+            </span>
+            <strong>You</strong>
+            <small>{myTeam?.name || "Pick your team"}</small>
+          </button>
+
+          <div className={styles.record}>
+            <span className={styles.recordScore}>{record.won}<i>–</i>{record.lost}</span>
+            <small>{record.tied ? `${record.tied} tie${record.tied === 1 ? "" : "s"}` : "head to head"}</small>
+          </div>
+
+          <div className={styles.fan}>
+            <span className={styles.fanCrest}>
+              {theirTeam ? <Crest src={theirTeam.logo} name={theirTeam.name} size={46} /> : <span className={styles.fanPlus}>?</span>}
+              {partner?.avatarUrl && <img className={styles.fanFace} src={mediaUrl(partner.avatarUrl)} alt="" />}
+            </span>
+            <strong>{partnerName}</strong>
+            <small>{theirTeam?.name || "No team yet"}</small>
+          </div>
         </div>
-      </div>
+
+        <div className={styles.heroChips}>
+          <span>🎯 {openBets} open bet{openBets === 1 ? "" : "s"}</span>
+          {toCollect > 0 && <span className={styles.heroChipHot}>🎁 {toCollect} prize{toCollect === 1 ? "" : "s"} to collect</span>}
+        </div>
+      </section>
 
       <div className={styles.tabs}>
         <button type="button" className={tab === "matches" ? styles.tabOn : ""} onClick={() => setTab("matches")}>Matches</button>
@@ -151,20 +176,25 @@ export default function FootballScreen({ onBack }: { onBack: () => void }) {
         {tab === "matches" && (
           <>
             <div className={styles.filters}>
-              {FILTERS.map((item) => (
+              <button type="button" className={filter === "all" ? styles.filterOn : ""} onClick={() => setFilter("all")}>All</button>
+              <button type="button" className={filter === "ours" ? styles.filterOn : ""} onClick={() => setFilter("ours")}>⭐ Our teams</button>
+              {COMPETITIONS.map((item) => (
                 <button key={item.id} type="button" className={filter === item.id ? styles.filterOn : ""} onClick={() => setFilter(item.id)}>
+                  {leagueLogos.get(item.id) && <img src={leagueLogos.get(item.id)} alt="" width={18} height={18} />}
                   {item.label}
                 </button>
               ))}
             </div>
             {error && <p className={styles.note}>{error}</p>}
-            {matches === null && !error && <p className={styles.note}>Loading fixtures…</p>}
+            {matches === null && !error && (
+              <div className={styles.skeletons}>{[0, 1, 2].map((i) => <div key={i} className={styles.skeleton} />)}</div>
+            )}
             {matches && groups.length === 0 && (
               <p className={styles.note}>{filter === "ours" ? "None of your teams play in the next three weeks." : "No matches in this window."}</p>
             )}
             {groups.map((group) => (
               <section key={group.label}>
-                <h3 className={`${styles.day} ${group.label === "Live now" ? styles.dayLive : ""}`}>{group.label}</h3>
+                <h3 className={`${styles.day} ${group.label === "Live now" ? styles.dayLive : ""}`}><span>{group.label}</span></h3>
                 {group.items.map((match) => (
                   <MatchCard
                     key={match.id}
@@ -183,7 +213,13 @@ export default function FootballScreen({ onBack }: { onBack: () => void }) {
 
         {tab === "bets" && (
           <>
-            {bets.length === 0 && <p className={styles.note}>No bets yet. Pick a match and challenge {partnerName}! 🎯</p>}
+            {bets.length === 0 && (
+              <div className={styles.empty}>
+                <span>🎯</span>
+                <p>No bets yet. Pick a match and challenge {partnerName}!</p>
+                <button type="button" className={styles.emptyBtn} onClick={() => setTab("matches")}>See matches</button>
+              </div>
+            )}
             {bets.map((bet) => (
               <BetCard
                 key={bet.id}
@@ -233,37 +269,50 @@ function MatchCard({ match, bet, mine, theirs, partnerName, onBet }: {
   onBet: () => void;
 }) {
   const started = match.status !== "scheduled";
+  const accent = mine && theirs ? styles.matchDerby : mine ? styles.matchMine : theirs ? styles.matchTheirs : "";
   const tag = (sideKey: "home" | "away") => (
-    <>
+    <span className={styles.tags}>
       {mine === sideKey && <em className={styles.tagMine}>You</em>}
       {theirs === sideKey && <em className={styles.tagTheirs}>{partnerName}</em>}
-    </>
+    </span>
   );
   return (
-    <div className={`${styles.match} ${mine || theirs ? styles.matchOurs : ""}`}>
+    <div className={`${styles.match} ${accent} ${match.status === "live" ? styles.matchLive : ""}`}>
       <div className={styles.matchTop}>
-        <span className={styles.league}>{match.leagueName}</span>
-        {match.status === "live" ? (
-          <span className={styles.live}><i />LIVE {match.clock || match.detail}</span>
-        ) : match.status === "finished" ? (
-          <span className={styles.ft}>Full time</span>
-        ) : match.status === "off" ? (
-          <span className={styles.ft}>{match.detail || "Postponed"}</span>
-        ) : (
-          <span className={styles.ft}>{clockTime(match.kickoff)}</span>
-        )}
+        <span className={styles.league}>
+          {match.leagueLogo && <img src={match.leagueLogo} alt="" width={16} height={16} />}
+          {match.leagueName}
+        </span>
+        {mine && theirs && <span className={styles.derby}>🔥 Your derby</span>}
       </div>
       <div className={styles.matchRow}>
         <div className={styles.side}>
-          <Crest src={match.home.logo} name={match.home.name} />
+          <span className={styles.disc}><Crest src={match.home.logo} name={match.home.name} size={38} /></span>
           <span className={styles.sideName}>{match.home.short}</span>
           {tag("home")}
         </div>
-        <div className={styles.score}>
-          {started && match.status !== "off" ? `${match.home.score ?? 0} – ${match.away.score ?? 0}` : "vs"}
+        <div className={styles.center}>
+          {match.status === "live" ? (
+            <>
+              <span className={styles.scoreLive}>{match.home.score ?? 0}<i>:</i>{match.away.score ?? 0}</span>
+              <span className={styles.livePill}><b />{match.clock || "LIVE"}</span>
+            </>
+          ) : match.status === "finished" ? (
+            <>
+              <span className={styles.scoreBig}>{match.home.score ?? 0}<i>:</i>{match.away.score ?? 0}</span>
+              <span className={styles.centerSub}>Full time</span>
+            </>
+          ) : match.status === "off" ? (
+            <span className={styles.centerSub}>{match.detail || "Postponed"}</span>
+          ) : (
+            <>
+              <span className={styles.kickoff}>{clockTime(match.kickoff)}</span>
+              <span className={styles.centerSub}>{dayLabel(match.kickoff)}</span>
+            </>
+          )}
         </div>
-        <div className={`${styles.side} ${styles.sideAway}`}>
-          <Crest src={match.away.logo} name={match.away.name} />
+        <div className={styles.side}>
+          <span className={styles.disc}><Crest src={match.away.logo} name={match.away.name} size={38} /></span>
           <span className={styles.sideName}>{match.away.short}</span>
           {tag("away")}
         </div>
@@ -271,15 +320,15 @@ function MatchCard({ match, bet, mine, theirs, partnerName, onBet }: {
       <div className={styles.matchFoot}>
         {bet?.mine ? (
           <button type="button" className={styles.betDone} onClick={started ? undefined : onBet} disabled={started}>
-            🎯 You: {bet.mine.homeGoals}–{bet.mine.awayGoals}
-            {bet.theirs ? " · both in 🔒" : ` · waiting for ${partnerName}`}
+            <span>🎯 You said <b>{bet.mine.homeGoals}–{bet.mine.awayGoals}</b></span>
+            <span className={styles.betDoneState}>{bet.theirs ? "Both in 🔒" : `Waiting for ${partnerName}`}</span>
           </button>
         ) : !started ? (
-          <button type="button" className={styles.betBtn} onClick={onBet}>
-            {bet?.theirs ? `⚡ ${partnerName} bet on this. Take them on` : "Place a bet"}
+          <button type="button" className={`${styles.betBtn} ${bet?.theirs ? styles.betBtnHot : ""}`} onClick={onBet}>
+            {bet?.theirs ? `⚡ ${partnerName} bet on this. Take them on!` : "Place a bet"}
           </button>
         ) : (
-          <span className={styles.betClosed}>{bet?.theirs ? `${partnerName} bet alone on this one` : "Betting closed"}</span>
+          <span className={styles.betClosed}>{bet?.theirs ? `${partnerName} bet alone on this one` : "Betting closed at kickoff"}</span>
         )}
       </div>
     </div>
@@ -287,37 +336,55 @@ function MatchCard({ match, bet, mine, theirs, partnerName, onBet }: {
 }
 
 function BetCard({ bet, live, partnerName, onOpen, onPaid }: { bet: Bet; live?: Match; partnerName: string; onOpen: () => void; onPaid: () => void }) {
+  const isLive = live?.status === "live";
   const score = bet.result
-    ? `${bet.result.homeScore} – ${bet.result.awayScore}`
-    : live && live.status !== "scheduled" ? `${live.home.score ?? 0} – ${live.away.score ?? 0}` : "vs";
+    ? `${bet.result.homeScore} : ${bet.result.awayScore}`
+    : live && live.status !== "scheduled" ? `${live.home.score ?? 0} : ${live.away.score ?? 0}` : clockTime(bet.match.kickoff);
+  const ribbon = bet.status === "void" ? { text: "VOID", cls: styles.ribbonVoid }
+    : bet.outcome === "won" ? { text: "YOU WON", cls: styles.ribbonWon }
+    : bet.outcome === "lost" ? { text: "YOU LOST", cls: styles.ribbonLost }
+    : bet.outcome === "tie" ? { text: "TIE", cls: styles.ribbonVoid }
+    : isLive ? { text: "LIVE", cls: styles.ribbonLive }
+    : null;
   const state = bet.status === "void" ? (bet.result?.reason || "Called off")
-    : bet.status === "settled" ? (bet.outcome === "won" ? "🏆 You won!" : bet.outcome === "lost" ? "😅 You lost" : "🤝 It's a tie")
-    : live?.status === "live" ? `🔴 Live ${live.clock}`
-    : bet.locked ? "🔒 Locked in, kicking off"
+    : bet.status === "settled" ? (bet.result?.reason || "")
+    : bet.locked ? "Locked in. Picks revealed"
     : !bet.mine ? `${partnerName} is waiting for you`
     : !bet.theirs ? `Waiting for ${partnerName}`
-    : "🔒 Both in. Picks reveal at kickoff";
-  const owes = bet.status === "settled" && bet.outcome === "won" ? `${partnerName} owes you: ${bet.mine?.prize}`
-    : bet.status === "settled" && bet.outcome === "lost" ? `You owe ${partnerName}: ${bet.theirs?.prize}`
-    : "";
+    : "Both in. Picks reveal at kickoff";
+  const owes = bet.status === "settled" && bet.outcome === "won" ? `${partnerName} owes you` : bet.status === "settled" && bet.outcome === "lost" ? `You owe ${partnerName}` : "";
+  const prize = bet.outcome === "won" ? bet.mine?.prize : bet.theirs?.prize;
   return (
-    <div className={`${styles.betCard} ${bet.outcome === "won" ? styles.betWon : bet.outcome === "lost" ? styles.betLost : ""}`} onClick={onOpen}>
-      <div className={styles.betHead}>
-        <span className={styles.league}>{bet.match.leagueName} · {dayLabel(bet.match.kickoff)} {clockTime(bet.match.kickoff)}</span>
-        <span className={styles.betState}>{state}</span>
+    <div className={`${styles.ticket} ${bet.outcome === "won" ? styles.ticketWon : bet.outcome === "lost" ? styles.ticketLost : ""}`} onClick={onOpen}>
+      {ribbon && <span className={`${styles.ribbon} ${ribbon.cls}`}>{ribbon.text}</span>}
+      <div className={styles.ticketTop}>
+        <span className={styles.league}>
+          {bet.match.leagueLogo && <img src={bet.match.leagueLogo} alt="" width={16} height={16} />}
+          {bet.match.leagueName} · {dayLabel(bet.match.kickoff)}
+        </span>
+        <div className={styles.matchRow}>
+          <div className={styles.side}><span className={styles.disc}><Crest src={bet.match.home.logo} name={bet.match.home.name} size={32} /></span><span className={styles.sideName}>{bet.match.home.name}</span></div>
+          <div className={styles.center}><span className={isLive ? styles.scoreLive : styles.scoreBig}>{score}</span></div>
+          <div className={styles.side}><span className={styles.disc}><Crest src={bet.match.away.logo} name={bet.match.away.name} size={32} /></span><span className={styles.sideName}>{bet.match.away.name}</span></div>
+        </div>
+        <p className={styles.ticketState}>{state}</p>
       </div>
-      <div className={styles.matchRow}>
-        <div className={styles.side}><Crest src={bet.match.home.logo} name={bet.match.home.name} size={30} /><span className={styles.sideName}>{bet.match.home.name}</span></div>
-        <div className={styles.score}>{score}</div>
-        <div className={`${styles.side} ${styles.sideAway}`}><Crest src={bet.match.away.logo} name={bet.match.away.name} size={30} /><span className={styles.sideName}>{bet.match.away.name}</span></div>
-      </div>
-      <div className={styles.picks}>
-        <div><small>You</small><strong>{bet.mine ? `${bet.mine.homeGoals}–${bet.mine.awayGoals}` : "—"}</strong><span>{bet.mine?.prize || "No bet yet"}</span></div>
-        <div><small>{partnerName}</small><strong>{bet.theirs ? (bet.theirs.homeGoals === null ? "🔒" : `${bet.theirs.homeGoals}–${bet.theirs.awayGoals}`) : "—"}</strong><span>{bet.theirs?.prize || "No bet yet"}</span></div>
+      <div className={styles.perforation} aria-hidden="true" />
+      <div className={styles.ticketPicks}>
+        <div className={bet.outcome === "won" ? styles.pickWin : ""}>
+          <small>You</small>
+          <strong>{bet.mine ? `${bet.mine.homeGoals} – ${bet.mine.awayGoals}` : "—"}</strong>
+          <span>{bet.mine?.prize || "No bet yet"}</span>
+        </div>
+        <div className={bet.outcome === "lost" ? styles.pickWin : ""}>
+          <small>{partnerName}</small>
+          <strong>{bet.theirs ? (bet.theirs.homeGoals === null ? "🔒" : `${bet.theirs.homeGoals} – ${bet.theirs.awayGoals}`) : "—"}</strong>
+          <span>{bet.theirs?.prize || "No bet yet"}</span>
+        </div>
       </div>
       {owes && (
         <div className={styles.owes} onClick={(event) => event.stopPropagation()}>
-          <span>{owes}</span>
+          <span><small>{owes}</small>{prize || "a surprise"}</span>
           {bet.outcome === "won" && (
             <button type="button" className={bet.paid ? styles.paidOn : styles.paidBtn} onClick={onPaid}>
               {bet.paid ? "✓ Received" : "Mark received"}
@@ -326,7 +393,6 @@ function BetCard({ bet, live, partnerName, onOpen, onPaid }: { bet: Bet; live?: 
           {bet.outcome === "lost" && bet.paid && <em className={styles.paidTag}>✓ Paid</em>}
         </div>
       )}
-      {bet.result?.reason && bet.status === "settled" && <p className={styles.reason}>{bet.result.reason}</p>}
     </div>
   );
 }
@@ -335,7 +401,7 @@ function Stepper({ value, onChange, label }: { value: number; onChange: (next: n
   return (
     <div className={styles.stepper}>
       <button type="button" onClick={() => onChange(Math.min(20, value + 1))} aria-label={`More goals for ${label}`}>+</button>
-      <span>{value}</span>
+      <span className={styles.digit} key={value}>{value}</span>
       <button type="button" onClick={() => onChange(Math.max(0, value - 1))} aria-label={`Fewer goals for ${label}`}>−</button>
     </div>
   );
@@ -385,59 +451,72 @@ function BetSheet({ match, bet, myTeamId, theirTeamId, partnerName, onClose, onS
     onSaved();
   };
 
+  const sideTag = (id: string) => (
+    <>
+      {myTeamId === id && <em className={styles.tagMine}>Your team</em>}
+      {theirTeamId === id && <em className={styles.tagTheirs}>{partnerName}</em>}
+    </>
+  );
+
   return createPortal(
     <div className={styles.scrim} onClick={onClose}>
       <div className={styles.sheet} onClick={(event) => event.stopPropagation()}>
-        <div className={styles.grip} />
-        <p className={styles.sheetLeague}>{match.leagueName} · {dayLabel(match.kickoff)} {clockTime(match.kickoff)}</p>
-        <h2 className={styles.sheetTitle}>Predict the score</h2>
-
-        <div className={styles.predict}>
-          <div className={styles.predictSide}>
-            <Crest src={match.home.logo} name={match.home.name} size={48} />
-            <span>{match.home.short}</span>
-            {myTeamId === match.home.id && <em className={styles.tagMine}>Your team</em>}
-            {theirTeamId === match.home.id && <em className={styles.tagTheirs}>{partnerName}</em>}
-          </div>
-          <Stepper value={home} onChange={setHome} label={match.home.name} />
-          <span className={styles.dash}>–</span>
-          <Stepper value={away} onChange={setAway} label={match.away.name} />
-          <div className={styles.predictSide}>
-            <Crest src={match.away.logo} name={match.away.name} size={48} />
-            <span>{match.away.short}</span>
-            {myTeamId === match.away.id && <em className={styles.tagMine}>Your team</em>}
-            {theirTeamId === match.away.id && <em className={styles.tagTheirs}>{partnerName}</em>}
-          </div>
-        </div>
-        <p className={styles.outcome}>{outcomeText(match.home.short, match.away.short, home, away)}</p>
-
-        <label className={styles.prizeLabel} htmlFor="bet-prize">If you win, {partnerName} owes you…</label>
-        <input
-          id="bet-prize"
-          className={styles.prizeInput}
-          placeholder="A gift, a dare, a date…"
-          value={prize}
-          onChange={(event) => setPrize(event.target.value)}
-          maxLength={200}
-        />
-        <div className={styles.prizeChips}>
-          {PRIZES.map((item) => (
-            <button key={item} type="button" className={prize === item ? styles.chipOn : ""} onClick={() => setPrize(item)}>{item}</button>
-          ))}
-        </div>
-
-        {bet?.theirs && (
-          <p className={styles.theirBet}>
-            ⚡ {partnerName} already bet. If they win, you owe them: <strong>{bet.theirs.prize}</strong>. Their score stays hidden until kickoff.
+        <div className={styles.sheetHero}>
+          <div className={styles.pitchLines} aria-hidden="true" />
+          <div className={styles.grip} />
+          <p className={styles.sheetLeague}>
+            {match.leagueLogo && <img src={match.leagueLogo} alt="" width={16} height={16} />}
+            {match.leagueName} · {dayLabel(match.kickoff)} {clockTime(match.kickoff)}
           </p>
-        )}
-        {error && <p className={styles.error}>{error}</p>}
+          <div className={styles.predict}>
+            <div className={styles.predictSide}>
+              <span className={styles.discBig}><Crest src={match.home.logo} name={match.home.name} size={52} /></span>
+              <span>{match.home.short}</span>
+              {sideTag(match.home.id)}
+            </div>
+            <div className={styles.board}>
+              <Stepper value={home} onChange={setHome} label={match.home.name} />
+              <span className={styles.boardColon}>:</span>
+              <Stepper value={away} onChange={setAway} label={match.away.name} />
+            </div>
+            <div className={styles.predictSide}>
+              <span className={styles.discBig}><Crest src={match.away.logo} name={match.away.name} size={52} /></span>
+              <span>{match.away.short}</span>
+              {sideTag(match.away.id)}
+            </div>
+          </div>
+          <p className={styles.outcome}>Your call: {outcomeText(match.home.short, match.away.short, home, away)}</p>
+        </div>
 
-        <button type="button" className={styles.lockBtn} onClick={() => void save()} disabled={!prize.trim() || saving}>
-          {saving ? "Locking in…" : bet?.mine ? "Update my bet" : "Lock in my bet 🎯"}
-        </button>
-        {bet?.mine && <button type="button" className={styles.withdraw} onClick={() => void withdraw()}>Take my bet back</button>}
-        <p className={styles.rules}>Exact score wins. Otherwise the right result wins, then the closest score. No money, just love. 💗</p>
+        <div className={styles.sheetBody}>
+          <label className={styles.prizeLabel} htmlFor="bet-prize">🎁 If you win, {partnerName} owes you…</label>
+          <input
+            id="bet-prize"
+            className={styles.prizeInput}
+            placeholder="A gift, a dare, a date…"
+            value={prize}
+            onChange={(event) => setPrize(event.target.value)}
+            maxLength={200}
+          />
+          <div className={styles.prizeChips}>
+            {PRIZES.map((item) => (
+              <button key={item} type="button" className={prize === item ? styles.chipOn : ""} onClick={() => setPrize(item)}>{item}</button>
+            ))}
+          </div>
+
+          {bet?.theirs && (
+            <p className={styles.theirBet}>
+              ⚡ {partnerName} already bet. If they win, you owe them <strong>{bet.theirs.prize}</strong>. Their score stays secret until kickoff.
+            </p>
+          )}
+          {error && <p className={styles.error}>{error}</p>}
+
+          <button type="button" className={styles.lockBtn} onClick={() => void save()} disabled={!prize.trim() || saving}>
+            {saving ? "Locking in…" : bet?.mine ? "Update my bet" : "Lock in my bet 🎯"}
+          </button>
+          {bet?.mine && <button type="button" className={styles.withdraw} onClick={() => void withdraw()}>Take my bet back</button>}
+          <p className={styles.rules}>Exact score wins · then the right result · then the closest score. No money, just love 💗</p>
+        </div>
       </div>
     </div>,
     document.body,
@@ -464,22 +543,29 @@ function TeamPicker({ current, onClose, onPicked }: { current?: string; onClose:
   };
 
   const shown = (teams || []).filter((team) => team.name.toLowerCase().includes(query.trim().toLowerCase()));
-  const leagues = [...new Set(shown.map((team) => team.leagueName))];
+  const leagues = COMPETITIONS.map((item) => ({
+    ...item,
+    logo: shown.find((team) => team.league === item.id)?.leagueLogo,
+    teams: shown.filter((team) => team.league === item.id),
+  })).filter((league) => league.teams.length);
 
   return createPortal(
     <div className={styles.scrim} onClick={onClose}>
-      <div className={styles.sheet} onClick={(event) => event.stopPropagation()}>
+      <div className={`${styles.sheet} ${styles.sheetPlain}`} onClick={(event) => event.stopPropagation()}>
         <div className={styles.grip} />
         <h2 className={styles.sheetTitle}>Who do you support?</h2>
-        <input className={styles.prizeInput} placeholder="Search teams" value={query} onChange={(event) => setQuery(event.target.value)} autoFocus />
-        {teams === null && <p className={styles.note}>Loading teams…</p>}
+        <input className={styles.prizeInput} placeholder="🔍 Search clubs" value={query} onChange={(event) => setQuery(event.target.value)} />
+        {teams === null && <div className={styles.skeletons}>{[0, 1].map((i) => <div key={i} className={styles.skeleton} />)}</div>}
         {leagues.map((league) => (
-          <section key={league}>
-            <h3 className={styles.day}>{league}</h3>
+          <section key={league.id}>
+            <h3 className={styles.pickerLeague}>
+              {league.logo && <img src={league.logo} alt="" width={20} height={20} />}
+              {league.id === "uefa.champions" ? "More clubs in the Champions League" : league.label}
+            </h3>
             <div className={styles.teamGrid}>
-              {shown.filter((team) => team.leagueName === league).map((team) => (
+              {league.teams.map((team) => (
                 <button key={team.id} type="button" className={`${styles.teamOption} ${current === team.id ? styles.teamOptionOn : ""}`} onClick={() => void choose(team)} disabled={!!saving}>
-                  <Crest src={team.logo} name={team.name} size={36} />
+                  <Crest src={team.logo} name={team.name} size={38} />
                   <span>{saving === team.id ? "Saving…" : team.short}</span>
                 </button>
               ))}
