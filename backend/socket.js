@@ -6,6 +6,7 @@ const { saveMessage } = require('./lib/messages');
 const { startGame, currentGame, clearGame, moveGame, viewGame, touchPlayer } = require('./lib/games');
 
 let io = null;
+// userId -> socket ids, so someone with two phones or tabs stays online until both close.
 const online = new Map();
 
 function initSocket(server) {
@@ -35,9 +36,25 @@ function initSocket(server) {
     const room = `couple:${user.coupleId}`;
     socket.join(room);
     socket.join(`user:${user._id}`);
-    online.set(String(user._id), socket.id);
+    const me = String(user._id);
+    if (!online.has(me)) online.set(me, new Set());
+    online.get(me).add(socket.id);
     User.updateOne({ _id: user._id }, { $set: { lastSeenAt: new Date() } }).catch(() => undefined);
     socket.to(room).emit('presence', { userId: user._id, online: true });
+
+    // Tell this connection who else in the couple is online right now.
+    const sendPresence = async () => {
+      const peers = await io.in(room).fetchSockets();
+      const seen = new Set();
+      for (const peer of peers) {
+        const id = String(peer.user?._id || '');
+        if (!id || id === me || seen.has(id)) continue;
+        seen.add(id);
+        socket.emit('presence', { userId: id, online: true });
+      }
+    };
+    sendPresence().catch(() => undefined);
+    socket.on('presence:check', () => { sendPresence().catch(() => undefined); });
 
     socket.on('message:send', async (body, ack) => {
       try {
@@ -101,7 +118,10 @@ function initSocket(server) {
     });
 
     socket.on('disconnect', () => {
-      if (online.get(String(user._id)) === socket.id) online.delete(String(user._id));
+      const sockets = online.get(me);
+      sockets?.delete(socket.id);
+      if (sockets && sockets.size > 0) return;
+      online.delete(me);
       socket.to(room).emit('presence', { userId: user._id, online: false });
     });
   });

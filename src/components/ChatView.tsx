@@ -293,6 +293,9 @@ export default function ChatView({ onBack }: Props) {
     socket.on("presence", (payload: { userId: string; online: boolean }) => {
       if (String(payload.userId) !== String(user.id)) setPartnerOnline(payload.online);
     });
+    // The connection is shared and may already be up, so ask who's online now.
+    socket.emit("presence:check");
+    socket.on("connect", () => socket.emit("presence:check"));
     socket.on("partner:updated", () => {
       refresh().catch(() => undefined);
     });
