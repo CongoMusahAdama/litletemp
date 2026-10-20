@@ -1232,9 +1232,31 @@ export default function ChatView({ onBack }: Props) {
 
           // System message (mood change etc.)
           if (msg.type === "system") {
+            const notice = parseNotice(msg.text || "");
+            if (!notice) {
+              return (
+                <div key={msg.id} className={styles.systemRow}>
+                  <span className={styles.systemBubble}>{msg.text}</span>
+                </div>
+              );
+            }
+            const who = msg.from === "me" ? "You" : notice.name;
             return (
               <div key={msg.id} className={styles.systemRow}>
-                <span className={styles.systemBubble}>{msg.text}</span>
+                <div className={styles.noticeCard}>
+                  <span className={`${styles.noticeIcon} ${notice.kind === "wish" ? styles.noticeIconWish : ""}`} aria-hidden="true">
+                    {notice.kind === "wish" ? (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="8" width="18" height="4" rx="1" /><path d="M12 8v13" /><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7" /><path d="M7.5 8a2.5 2.5 0 0 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5" /></svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /><path d="M9 7h7M9 11h5" /></svg>
+                    )}
+                  </span>
+                  <span className={styles.noticeText}>
+                    <small>{who} added {notice.kind === "wish" ? "a wish" : "a journal entry"}</small>
+                    <strong>{notice.title}</strong>
+                  </span>
+                  <span className={styles.noticeTime}>{msg.time}</span>
+                </div>
               </div>
             );
           }
@@ -1737,6 +1759,13 @@ function OnceChip({ msg, label, openedLabel = "Opened", onOpen }: { msg: Message
       </span>
     </button>
   );
+}
+
+// Server notices look like: '📖 Nana added a journal entry: "Our day out"'.
+function parseNotice(text: string): { kind: "journal" | "wish"; name: string; title: string } | null {
+  const match = text.match(/^\S+\s+(.+?) added a (journal entry|wish): "([\s\S]*)"$/);
+  if (!match) return null;
+  return { name: match[1], kind: match[2] === "wish" ? "wish" : "journal", title: match[3] };
 }
 
 function PendingClock() {
