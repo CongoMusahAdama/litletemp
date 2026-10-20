@@ -13,6 +13,7 @@ export type PublicUser = {
   hasPin: boolean;
   hasPassword: boolean;
   accessId?: string;
+  favoriteTeam?: { id: string; name: string; logo: string; league: string } | null;
 };
 
 export type CoupleInfo = {

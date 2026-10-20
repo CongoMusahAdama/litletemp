@@ -9,6 +9,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { applyBubble, BUBBLES } from "@/lib/bubbles";
 import { unlockDay } from "@/lib/rewards";
 import GamesScreen from "../GamesScreen";
+import FootballScreen from "../FootballScreen";
 
 const menuItems = [
   {
@@ -25,6 +26,20 @@ const menuItems = [
         <circle cx="12" cy="12" r="1.2" fill="currentColor" />
         <circle cx="8" cy="16" r="1.2" fill="currentColor" />
         <circle cx="16" cy="16" r="1.2" fill="currentColor" />
+      </svg>
+    ),
+  },
+  {
+    id: "football",
+    label: "Match bets",
+    sub: "Bet gifts & dares on the football",
+    iconBg: "#DCFCE7",
+    iconColor: "#16A34A",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="9.5" />
+        <polygon points="12 7.5 15.8 10.3 14.4 14.8 9.6 14.8 8.2 10.3" fill="currentColor" stroke="none" />
+        <path d="M12 7.5V2.6M15.8 10.3l4.7-1.5M14.4 14.8l2.9 4M9.6 14.8l-2.9 4M8.2 10.3 3.5 8.8" />
       </svg>
     ),
   },
@@ -314,6 +329,10 @@ export default function MoreTab() {
 
   if (panel === "play") {
     return <GamesScreen onBack={() => setPanel(null)} />;
+  }
+
+  if (panel === "football") {
+    return <FootballScreen onBack={() => setPanel(null)} />;
   }
 
   if (panel) {

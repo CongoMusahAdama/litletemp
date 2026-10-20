@@ -13,6 +13,12 @@ const userSchema = new mongoose.Schema({
   language: { type: String, default: 'English' },
   theme: { type: String, enum: ['light', 'dark'], default: 'light' },
   bubbleColor: { type: String, default: '#FF4081' },
+  favoriteTeam: {
+    id: String,
+    name: String,
+    logo: String,
+    league: String,
+  },
   pushSubscriptions: [{
     endpoint: String,
     p256dh: String,
@@ -36,6 +42,9 @@ userSchema.methods.toPublic = function toPublic() {
     language: this.language,
     theme: this.theme,
     bubbleColor: this.bubbleColor || '#FF4081',
+    favoriteTeam: this.favoriteTeam?.id
+      ? { id: this.favoriteTeam.id, name: this.favoriteTeam.name, logo: this.favoriteTeam.logo, league: this.favoriteTeam.league }
+      : null,
     hasPin: Boolean(this.pinHash),
     hasPassword: Boolean(this.passwordHash),
   };

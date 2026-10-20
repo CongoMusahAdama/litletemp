@@ -17,6 +17,7 @@ const nudgeRoutes = require('./routes/nudge');
 const memoryRoutes = require('./routes/memories');
 const gameRoutes = require('./routes/games');
 const snapRoutes = require('./routes/snaps');
+const footballRoutes = require('./routes/football');
 const Upload = require('./models/Upload');
 const { verifyUpload } = require('./lib/present');
 const { log } = require('./lib/log');
@@ -74,6 +75,7 @@ function createApp() {
   app.use('/api/memories', memoryRoutes);
   app.use('/api/games', gameRoutes);
   app.use('/api/snaps', snapRoutes);
+  app.use('/api/football', footballRoutes);
 
   app.use((error, req, res, _next) => {
     log('error', error.message || 'request failed', {

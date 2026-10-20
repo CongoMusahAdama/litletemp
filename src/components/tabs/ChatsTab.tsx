@@ -9,7 +9,18 @@ import { useDaily } from "@/hooks/useDaily";
 import DailyQuestion from "../DailyQuestion";
 import OnThisDay from "../OnThisDay";
 import { sendNudge } from "../HeartBurst";
-import { listTime } from "@/lib/chatDates";
+import { clockTime, dayLabel, listTime } from "@/lib/chatDates";
+import { createPortal } from "react-dom";
+import FootballScreen from "../FootballScreen";
+
+type MatchDay = {
+  id: string;
+  kickoff: string;
+  status: "scheduled" | "live" | "finished" | "off";
+  clock: string;
+  home: { id: string; short: string; logo: string; score: number | null };
+  away: { id: string; short: string; logo: string; score: number | null };
+};
 
 interface Props {
   onOpenChat: () => void;
@@ -55,6 +66,23 @@ export default function ChatsTab({ onOpenChat }: Props) {
   const [showDaily, setShowDaily] = useState(false);
   const [nudgeNote, setNudgeNote] = useState("");
   const [nudging, setNudging] = useState(false);
+  const [matchDay, setMatchDay] = useState<MatchDay | null>(null);
+  const [showFootball, setShowFootball] = useState(false);
+  const myTeamId = user?.favoriteTeam?.id;
+  const theirTeamId = partner?.favoriteTeam?.id;
+
+  // When either of your teams plays soon (or is playing now), show it on the home screen.
+  useEffect(() => {
+    if (!myTeamId && !theirTeamId) return;
+    api<MatchDay[]>("/api/football/matches")
+      .then((matches) => {
+        const ours = (match: MatchDay) => [match.home.id, match.away.id].some((id) => id === myTeamId || id === theirTeamId);
+        const soon = Date.now() + 36 * 60 * 60 * 1000;
+        const next = matches.find((match) => ours(match) && (match.status === "live" || (match.status === "scheduled" && new Date(match.kickoff).getTime() < soon)));
+        setMatchDay(next || null);
+      })
+      .catch(() => undefined);
+  }, [myTeamId, theirTeamId]);
 
   const nudge = async () => {
     if (nudging) return;
@@ -273,6 +301,22 @@ export default function ChatsTab({ onOpenChat }: Props) {
           </span>
         </button>
 
+        {matchDay && (
+          <button type="button" className={styles.matchCard} onClick={() => setShowFootball(true)}>
+            <span className={styles.matchKicker}>
+              {matchDay.status === "live" ? <><i className={styles.matchLiveDot} />Live now</> : `⚽ ${dayLabel(matchDay.kickoff)} · ${clockTime(matchDay.kickoff)}`}
+            </span>
+            <span className={styles.matchTeams}>
+              <img src={matchDay.home.logo} alt="" width={28} height={28} />
+              <strong>{matchDay.home.short}</strong>
+              <em>{matchDay.status === "live" ? `${matchDay.home.score ?? 0} – ${matchDay.away.score ?? 0}` : "vs"}</em>
+              <strong>{matchDay.away.short}</strong>
+              <img src={matchDay.away.logo} alt="" width={28} height={28} />
+            </span>
+            <span className={styles.matchCta}>{matchDay.status === "live" ? "See your bet →" : "Place your bet →"}</span>
+          </button>
+        )}
+
         <button type="button" className={styles.dailyCard} onClick={() => setShowDaily(true)}>
           <span className={styles.dailyKicker}>
             💬 Question of the day
@@ -291,6 +335,13 @@ export default function ChatsTab({ onOpenChat }: Props) {
 
       {showDaily && (
         <DailyQuestion daily={daily} partnerName={partnerName} onAnswer={answer} onClose={() => setShowDaily(false)} />
+      )}
+
+      {showFootball && createPortal(
+        <div className={styles.fullScreen}>
+          <FootballScreen onBack={() => setShowFootball(false)} />
+        </div>,
+        document.body,
       )}
 
       {watching && (

@@ -16,9 +16,10 @@ export function clockTime(value: string | Date) {
 export function dayLabel(value: string | Date, now = new Date()) {
   const date = new Date(value);
   const ago = daysAgo(date, now);
-  if (ago <= 0) return "Today";
+  if (ago === 0) return "Today";
   if (ago === 1) return "Yesterday";
-  if (ago < 7) return date.toLocaleDateString([], { weekday: "long" });
+  if (ago === -1) return "Tomorrow";
+  if (ago > -7 && ago < 7) return date.toLocaleDateString([], { weekday: "long" });
   return date.toLocaleDateString([], {
     day: "numeric",
     month: "long",

@@ -2,7 +2,8 @@ require('dotenv').config();
 const http = require('http');
 const mongoose = require('mongoose');
 const { createApp } = require('./app');
-const { initSocket } = require('./socket');
+const { initSocket, getIo } = require('./socket');
+const { settleDueBets } = require('./lib/bets');
 const { sendMorningNotes, sendAwayNotes } = require('./lib/morning');
 const { log } = require('./lib/log');
 
@@ -33,6 +34,10 @@ mongoose.connect(process.env.MONGO_URI)
       sendMorningNotes().catch((error) => log('error', 'morning notes failed', { stack: error.stack }));
       sendAwayNotes().catch((error) => log('error', 'away notes failed', { stack: error.stack }));
     }, 15 * 60 * 1000);
+    // Settle match bets shortly after full time.
+    setInterval(() => {
+      settleDueBets(getIo()).catch((error) => log('error', 'bet settle failed', { stack: error.stack }));
+    }, 5 * 60 * 1000);
   })
   .catch((error) => log('error', 'MongoDB connection error', { stack: error.stack }));
 

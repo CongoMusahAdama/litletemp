@@ -505,3 +505,63 @@
 
 .dailyQuestion { font-size: 16px; font-weight: 800; line-height: 1.35; }
 .dailyStatus { font-size: 13px; color: var(--text-secondary); font-weight: 600; }
+
+/* ── Match-day card ── */
+.matchCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #0f3d2e 0%, #14532d 60%, #166534 100%);
+  color: #fff;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(20, 83, 45, 0.28);
+  transition: transform 0.15s ease;
+}
+.matchCard:active { transform: scale(0.98); }
+
+.matchKicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  opacity: 0.9;
+}
+
+.matchLiveDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f87171;
+  animation: matchLive 1.2s ease-in-out infinite;
+}
+@keyframes matchLive { 50% { opacity: 0.3; } }
+
+.matchTeams {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.matchTeams img { object-fit: contain; background: rgba(255, 255, 255, 0.92); border-radius: 50%; padding: 2px; }
+.matchTeams strong { font-size: 15px; font-weight: 800; }
+.matchTeams em { font-style: normal; font-size: 18px; font-weight: 800; margin: 0 6px; font-variant-numeric: tabular-nums; }
+
+.matchCta { align-self: flex-end; font-size: 13px; font-weight: 800; color: #bbf7d0; }
+
+.fullScreen {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, 430px);
+  height: 100dvh;
+  z-index: 2500;
+  background: var(--bg-app);
+}
