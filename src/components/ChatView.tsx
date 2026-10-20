@@ -110,6 +110,8 @@ function ChatPhoto({ src, onOpen, children }: { src: string; onOpen: (url: strin
       <img
         src={current}
         alt=""
+        loading="lazy"
+        decoding="async"
         className={styles.mediaImg}
         onError={() => {
           if (tried.current) {
@@ -1613,17 +1615,12 @@ function VoiceNote({ src, mine }: { src: string; mine: boolean }) {
   const [speed, setSpeed] = useState(1);
   const [peaks, setPeaks] = useState<number[]>(() => peakCache.get(src) || FALLBACK_PEAKS);
 
-  useEffect(() => {
-    let cancelled = false;
-    loadPeaks(src)
-      .then((next) => { if (!cancelled) setPeaks(next); })
-      .catch(() => undefined);
-    return () => { cancelled = true; };
-  }, [src]);
-
+  // Only fetch the real waveform once you press play, so opening the chat
+  // doesn't download every voice note in it.
   const toggle = () => {
     const audio = audioRef.current;
     if (!audio) return;
+    if (!peakCache.has(src)) loadPeaks(src).then(setPeaks).catch(() => undefined);
     if (audio.paused) void audio.play().catch(() => setPlaying(false));
     else audio.pause();
   };

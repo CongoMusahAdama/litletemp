@@ -44,7 +44,8 @@ function createApp() {
       const doc = await Upload.findOne({ filename });
       if (!doc) return res.status(404).end();
       res.set('Content-Type', doc.contentType);
-      res.set('Cache-Control', 'private, max-age=3600');
+      // A filename's bytes never change, so the phone can keep it.
+      res.set('Cache-Control', 'private, max-age=604800, immutable');
       res.set('Cross-Origin-Resource-Policy', 'cross-origin');
       res.set('X-Content-Type-Options', 'nosniff');
       res.send(doc.data);

@@ -19,8 +19,13 @@ function uploadFilename(url) {
   return name;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Round the expiry up to a whole day so the same file gets the same link all day.
+// A link that changed on every request made phones re-download every photo,
+// avatar and voice note each time, which kept the server busy.
 function signUpload(filename, now = Date.now()) {
-  const exp = now + UPLOAD_TTL_MS;
+  const exp = Math.ceil((now + UPLOAD_TTL_MS) / DAY_MS) * DAY_MS;
   const sig = crypto.createHmac('sha256', process.env.JWT_SECRET).update(`${filename}.${exp}`).digest('hex');
   return `/uploads/${encodeURIComponent(filename)}?exp=${exp}&sig=${sig}`;
 }
