@@ -69,6 +69,7 @@ function presentMessage(message) {
     read: message.readByPartner,
     viewOnce: message.viewOnce || false,
     viewedByPartner: message.viewedByPartner || false,
+    reactions: message.isDeleted ? [] : (message.reactions || []).map((item) => ({ userId: item.userId, emoji: item.emoji })),
     time: clock(message.createdAt),
     createdAt: message.createdAt,
   };

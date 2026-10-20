@@ -16,6 +16,7 @@ import { sendNudge } from "./HeartBurst";
 import { useDaily } from "@/hooks/useDaily";
 import { saveMedia } from "@/lib/saveMedia";
 import ViewOnceIcon from "./ViewOnceIcon";
+import VoicePlayer from "./VoicePlayer";
 import { clockTime, dayLabel, sameDay } from "@/lib/chatDates";
 import { readChatCache, writeChatCache } from "@/lib/chatCache";
 
@@ -40,6 +41,7 @@ interface Message {
   viewOnce?: boolean;
   viewedByPartner?: boolean;
   createdAt?: string;
+  reactions?: { userId: string; emoji: string }[];
   /** Shown straight away while the server saves it. */
   pending?: boolean;
   failed?: boolean;
@@ -72,6 +74,8 @@ type MenuAnchor = { top: number; bottom: number; left: number; right: number };
 
 const MENU_WIDTH = 216;
 const MENU_ROW = 46;
+const REACT_BAR = 54;
+const QUICK_REACTIONS = ["❤️", "😂", "😮", "😢", "🙏", "👍"];
 
 const MenuIcon = {
   reply: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>,
@@ -156,6 +160,10 @@ export default function ChatView({ onBack }: Props) {
   // Message Actions state
   const [contextMenu, setContextMenu] = useState<{ msgId: string, anchor: MenuAnchor | null, isMe: boolean, width: number, height: number } | null>(null);
   const [pinChoices, setPinChoices] = useState(false);
+  const [reactPickerFor, setReactPickerFor] = useState<Message | null>(null);
+  const [holdMode, setHoldMode] = useState(false);
+  const [slideX, setSlideX] = useState(0);
+  const holdRef = useRef<{ x: number; y: number; at: number } | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[] | null>(null);
   const [showStreak, setShowStreak] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
@@ -597,6 +605,64 @@ export default function ChatView({ onBack }: Props) {
     }
   };
 
+  const reactTo = (msg: Message, emoji: string) => {
+    setContextMenu(null);
+    setReactPickerFor(null);
+    const me = String(user?.id);
+    const current = msg.reactions || [];
+    const previous = current.find((item) => String(item.userId) === me);
+    const others = current.filter((item) => String(item.userId) !== me);
+    const next = previous?.emoji === emoji ? others : [...others, { userId: me, emoji }];
+    setMessages((prev) => prev.map((item) => item.id === msg.id ? { ...item, reactions: next } : item));
+    navigator.vibrate?.(12);
+    api(`/api/chat/messages/${msg.id}/react`, { method: "POST", body: JSON.stringify({ emoji }) })
+      .catch(() => setMessages((prev) => prev.map((item) => item.id === msg.id ? { ...item, reactions: current } : item)));
+  };
+
+  // Hold the mic to record, let go to send, slide left to cancel, slide up to lock.
+  const onMicDown = (event: React.PointerEvent) => {
+    if (isRecording) return;
+    event.preventDefault();
+    holdRef.current = { x: event.clientX, y: event.clientY, at: event.timeStamp };
+    setHoldMode(true);
+    setSlideX(0);
+    void startRecording();
+    const end = () => {
+      holdRef.current = null;
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      setSlideX(0);
+    };
+    const move = (moved: PointerEvent) => {
+      const hold = holdRef.current;
+      if (!hold) return;
+      const dx = Math.min(0, moved.clientX - hold.x);
+      const dy = moved.clientY - hold.y;
+      setSlideX(dx);
+      if (dx < -110) {
+        end();
+        setHoldMode(false);
+        void finishRecording(false);
+      } else if (dy < -70) {
+        end();
+        setHoldMode(false);
+      }
+    };
+    const up = (released: PointerEvent) => {
+      const hold = holdRef.current;
+      end();
+      setHoldMode(false);
+      if (!hold) return;
+      // A quick tap keeps recording hands-free; use the delete / send buttons.
+      if (released.timeStamp - hold.at < 350) return;
+      void finishRecording(true);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  };
+
   const copyText = async (text: string) => {
     setContextMenu(null);
     try {
@@ -711,7 +777,7 @@ export default function ChatView({ onBack }: Props) {
   // Swipe left or right anywhere in the chat to go back to the chat list.
   const swipeBlocked = Boolean(
     contextMenu || selectedIds || viewer || showCamera || showStreak || showDaily || draftMedia
-    || call.phase !== "idle" || isRecording || partnerAvatarViewer || micAsk || showEmoji,
+    || call.phase !== "idle" || isRecording || partnerAvatarViewer || micAsk || showEmoji || reactPickerFor,
   );
 
   const onSwipeStart = (event: React.TouchEvent) => {
@@ -1010,7 +1076,9 @@ export default function ChatView({ onBack }: Props) {
             ...(contextMenu.isMe && live ? [{ key: "delete", label: "Delete", icon: MenuIcon.trash, danger: true, run: () => handleDeleteMessage(target.id) }] : []),
           ];
         const { width, height } = contextMenu;
-        const menuHeight = items.length * MENU_ROW + 12;
+        const canReact = live && !pinChoices && target.type !== "system";
+        const myReaction = target.reactions?.find((item) => String(item.userId) === String(user?.id))?.emoji;
+        const menuHeight = items.length * MENU_ROW + 12 + (canReact ? REACT_BAR : 0);
         const anchor = contextMenu.anchor;
         let top = anchor ? anchor.bottom + 6 : (height - menuHeight) / 2;
         if (anchor && top + menuHeight > height - 12) top = anchor.top - menuHeight - 6;
@@ -1030,6 +1098,24 @@ export default function ChatView({ onBack }: Props) {
               style={{ top, left, width: MENU_WIDTH, transformOrigin: anchor && top < anchor.top ? "bottom center" : "top center" }}
               onClick={(event) => event.stopPropagation()}
             >
+              {canReact && (
+                <div className={styles.reactBar}>
+                  {QUICK_REACTIONS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      className={`${styles.reactOption} ${myReaction === emoji ? styles.reactOptionOn : ""}`}
+                      onClick={() => reactTo(target, emoji)}
+                      aria-label={`React ${emoji}`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                  <button type="button" className={styles.reactMore} onClick={() => { setContextMenu(null); setReactPickerFor(target); }} aria-label="More reactions">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><line x1="12" y1="6" x2="12" y2="18" /><line x1="6" y1="12" x2="18" y2="12" /></svg>
+                  </button>
+                </div>
+              )}
               {items.map((item) => (
                 <button
                   key={item.key}
@@ -1252,7 +1338,12 @@ export default function ChatView({ onBack }: Props) {
                       />
                     ) : msg.mediaUrl ? (
                       <div className={`${styles.bubble} ${msg.from === "me" ? styles.bubbleMe : styles.bubbleBabe}`}>
-                        <VoiceNote src={msg.mediaUrl} mine={msg.from === "me"} />
+                        <VoicePlayer
+                          src={msg.mediaUrl}
+                          mine={msg.from === "me"}
+                          avatar={msg.from === "me" ? user?.avatarUrl : partner?.avatarUrl}
+                          name={msg.from === "me" ? shownName(user, "Me") : chatTitle}
+                        />
                         <span className={styles.bubbleTime}>
                           {msg.time}
                           {msg.from === "me" && <DoubleCheck read={msg.read} />}
@@ -1270,6 +1361,22 @@ export default function ChatView({ onBack }: Props) {
                         {msg.from === "me" && (msg.pending ? <PendingClock /> : msg.failed ? <span className={styles.failedMark}>!</span> : <DoubleCheck read={msg.read} />)}
                       </span>
                     </div>
+                  )}
+                  {!!msg.reactions?.length && !msg.isDeleted && (
+                    <button
+                      type="button"
+                      className={`${styles.reactionPill} ${msg.from === "me" ? styles.reactionPillMe : ""}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        const mine = msg.reactions?.find((item) => String(item.userId) === String(user?.id));
+                        if (mine) reactTo(msg, mine.emoji);
+                        else openMessageMenu(msg, event.currentTarget.parentElement || undefined);
+                      }}
+                      aria-label="Reactions"
+                    >
+                      {[...new Set(msg.reactions.map((item) => item.emoji))].map((emoji) => <span key={emoji}>{emoji}</span>)}
+                      {msg.reactions.length > 1 && <small>{msg.reactions.length}</small>}
+                    </button>
                   )}
                   {msg.failed && (
                     <button
@@ -1361,6 +1468,7 @@ export default function ChatView({ onBack }: Props) {
       )}
 
       {showEmoji && <EmojiPicker onPick={addEmoji} onClose={() => setShowEmoji(false)} />}
+      {reactPickerFor && <EmojiPicker onPick={(emoji) => reactTo(reactPickerFor, emoji)} onClose={() => setReactPickerFor(null)} />}
 
       {/* Attach panel */}
       {showAttach && (
@@ -1425,7 +1533,27 @@ export default function ChatView({ onBack }: Props) {
 
         <div className={styles.inputBar} style={{ borderTop: 'none' }}>
           {isRecording ? (
-            <div className={styles.recordingBar}>
+            holdMode ? (
+              <div className={styles.recordingBar} data-no-swipe>
+                <div className={styles.recordPill}>
+                  <span className={styles.recordTime}>
+                    <span className={styles.recordDot} />
+                    {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")}
+                  </span>
+                  <span className={styles.slideHint} style={{ transform: `translateX(${slideX}px)`, opacity: Math.max(0.2, 1 + slideX / 140) }}>
+                    ‹ Slide to cancel
+                  </span>
+                </div>
+                <span className={styles.lockHint} aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className={styles.lockArrow}><polyline points="6 15 12 9 18 15" /></svg>
+                </span>
+                <span className={styles.holdMic} aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 15a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v7a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2z" /></svg>
+                </span>
+              </div>
+            ) : (
+            <div className={styles.recordingBar} data-no-swipe>
               <button type="button" className={styles.recordCancel} onClick={() => finishRecording(false)} aria-label="Delete recording">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
               </button>
@@ -1444,6 +1572,7 @@ export default function ChatView({ onBack }: Props) {
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 11.5l17-8-7 18-2.2-7.2L3 11.5z" /></svg>
               </button>
             </div>
+            )
           ) : (
             <>
               <button
@@ -1518,7 +1647,10 @@ export default function ChatView({ onBack }: Props) {
             id="btn-voice"
             type="button"
             className={styles.voiceBtn}
-            onClick={startRecording}
+            onPointerDown={onMicDown}
+            onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") void startRecording(); }}
+            aria-label="Hold to record a voice note"
+            data-no-swipe
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
@@ -1580,138 +1712,6 @@ function encodeWav(chunks: Float32Array[], sampleRate: number) {
     }
   });
   return new Blob([buffer], { type: "audio/wav" });
-}
-
-const PEAK_COUNT = 34;
-const peakCache = new Map<string, number[]>();
-const FALLBACK_PEAKS = Array.from({ length: PEAK_COUNT }, (_, i) => 0.25 + 0.55 * Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.6)));
-const SPEEDS = [1, 1.5, 2];
-
-// Real waveform of the recording, worked out once per file and remembered.
-async function loadPeaks(src: string) {
-  const cached = peakCache.get(src);
-  if (cached) return cached;
-  const context = noteAudio();
-  if (!context) return FALLBACK_PEAKS;
-  const data = await (await fetch(src)).arrayBuffer();
-  const audio = await context.decodeAudioData(data);
-  const samples = audio.getChannelData(0);
-  const block = Math.max(1, Math.floor(samples.length / PEAK_COUNT));
-  const peaks: number[] = [];
-  for (let i = 0; i < PEAK_COUNT; i += 1) {
-    let sum = 0;
-    for (let j = 0; j < block; j += 16) sum += Math.abs(samples[i * block + j] || 0);
-    peaks.push(sum / (block / 16));
-  }
-  const max = Math.max(...peaks, 0.0001);
-  const scaled = peaks.map((peak) => Math.max(0.12, peak / max));
-  peakCache.set(src, scaled);
-  return scaled;
-}
-
-function VoiceNote({ src, mine }: { src: string; mine: boolean }) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const waveRef = useRef<HTMLDivElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [speed, setSpeed] = useState(1);
-  const [peaks, setPeaks] = useState<number[]>(() => peakCache.get(src) || FALLBACK_PEAKS);
-
-  // Only fetch the real waveform once you press play, so opening the chat
-  // doesn't download every voice note in it.
-  const toggle = () => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (!peakCache.has(src)) loadPeaks(src).then(setPeaks).catch(() => undefined);
-    if (audio.paused) void audio.play().catch(() => setPlaying(false));
-    else audio.pause();
-  };
-
-  const seek = (clientX: number) => {
-    const audio = audioRef.current;
-    const wave = waveRef.current;
-    if (!audio || !wave || !audio.duration) return;
-    const rect = wave.getBoundingClientRect();
-    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-    audio.currentTime = ratio * audio.duration;
-    setProgress(ratio);
-  };
-
-  const cycleSpeed = () => {
-    const next = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
-    setSpeed(next);
-    if (audioRef.current) audioRef.current.playbackRate = next;
-  };
-
-  const clock = (value: number) => `${Math.floor(value / 60)}:${Math.floor(value % 60).toString().padStart(2, "0")}`;
-  const shown = playing || progress > 0 ? duration * progress : duration;
-
-  return (
-    // Taps here control playback; they shouldn't count toward double-tap-for-menu.
-    <div className={`${styles.voiceMsg} ${mine ? styles.voiceMine : ""}`} onClick={(event) => event.stopPropagation()} data-no-swipe>
-      <audio
-        ref={audioRef}
-        src={src}
-        preload="metadata"
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => { setPlaying(false); setProgress(0); }}
-        onLoadedMetadata={(event) => {
-          const value = event.currentTarget.duration;
-          setDuration(Number.isFinite(value) ? value : 0);
-          event.currentTarget.playbackRate = speed;
-        }}
-        onTimeUpdate={(event) => {
-          const audio = event.currentTarget;
-          if (Number.isFinite(audio.duration) && audio.duration) {
-            setDuration(audio.duration);
-            setProgress(audio.currentTime / audio.duration);
-          }
-        }}
-      />
-      <button type="button" className={styles.playBtn} onClick={toggle} aria-label={playing ? "Pause" : "Play"}>
-        {playing ? (
-          <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.2" /><rect x="14" y="5" width="4" height="14" rx="1.2" /></svg>
-        ) : (
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" /></svg>
-        )}
-      </button>
-      <div className={styles.voiceBody}>
-        <div
-          ref={waveRef}
-          className={styles.waveform}
-          onClick={(event) => seek(event.clientX)}
-          onTouchMove={(event) => seek(event.touches[0].clientX)}
-          role="slider"
-          aria-label="Voice note position"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(progress * 100)}
-        >
-          {peaks.map((peak, index) => (
-            <span
-              key={index}
-              className={`${styles.bar} ${(index + 0.5) / peaks.length <= progress ? styles.barPlayed : ""}`}
-              style={{ height: `${Math.round(4 + peak * 20)}px` }}
-            />
-          ))}
-          <span className={styles.waveKnob} style={{ left: `${progress * 100}%` }} />
-        </div>
-        <div className={styles.voiceMeta}>
-          <span className={styles.voiceDur}>{clock(shown)}</span>
-          {(playing || speed !== 1) && (
-            <button type="button" className={styles.speedBtn} onClick={cycleSpeed} aria-label="Playback speed">
-              {speed}×
-            </button>
-          )}
-        </div>
-      </div>
-      <span className={styles.voiceMic} aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 15a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v7a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2z" /></svg>
-      </span>
-    </div>
-  );
 }
 
 function OnceChip({ msg, label, openedLabel = "Opened", onOpen }: { msg: Message; label: string; openedLabel?: string; onOpen: () => void }) {

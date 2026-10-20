@@ -6,6 +6,7 @@ const { presentMessage } = require('../lib/present');
 const { saveMessage } = require('../lib/messages');
 const { touchStreak, streakView } = require('../lib/couple');
 const { getIo, isOnline } = require('../socket');
+const { deliver, iconFor } = require('../lib/push');
 
 const router = express.Router();
 router.use(requireAuth, requireCouple);
@@ -138,6 +139,40 @@ router.patch('/messages/:id', async (req, res, next) => {
     const payload = presentMessage(message);
     const io = getIo();
     if (io) io.to(`couple:${req.couple._id}`).emit('message:updated', payload);
+    res.json(payload);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// React to a message. The same emoji again removes it; a new one replaces yours.
+router.post('/messages/:id/react', async (req, res, next) => {
+  try {
+    const emoji = String(req.body.emoji || '').trim();
+    if (!emoji || emoji.length > 16) return res.status(400).json({ error: 'Pick a reaction' });
+    const message = await Message.findOne({ _id: req.params.id, coupleId: req.couple._id });
+    if (!message || message.isDeleted || message.type === 'system') return res.status(404).json({ error: 'Message not found' });
+    const me = String(req.user._id);
+    const previous = (message.reactions || []).find((item) => String(item.userId) === me);
+    message.reactions = (message.reactions || []).filter((item) => String(item.userId) !== me);
+    const added = !previous || previous.emoji !== emoji;
+    if (added) message.reactions.push({ userId: req.user._id, emoji });
+    await message.save();
+    const payload = presentMessage(message);
+    const io = getIo();
+    if (io) io.to(`couple:${req.couple._id}`).emit('message:updated', payload);
+
+    if (added && String(message.senderId) !== me) {
+      const author = await User.findById(message.senderId);
+      const preview = message.type === 'text' ? `"${String(message.text || '').slice(0, 60)}"`
+        : message.type === 'image' ? 'your photo' : message.type === 'video' ? 'your video' : 'your voice note';
+      deliver(author, {
+        kind: 'reaction',
+        title: req.user.name || 'Little Temptation',
+        body: `Reacted ${emoji} to ${preview}`,
+        icon: iconFor(req.user),
+      }).catch(() => undefined);
+    }
     res.json(payload);
   } catch (error) {
     next(error);

@@ -12,6 +12,11 @@ const messageSchema = new mongoose.Schema({
   readByPartner: { type: Boolean, default: false },
   viewOnce: { type: Boolean, default: false },
   viewedByPartner: { type: Boolean, default: false },
+  // One emoji per person, like WhatsApp.
+  reactions: [{
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    emoji: { type: String, maxlength: 16 },
+  }],
 }, { timestamps: true });
 
 messageSchema.index({ coupleId: 1, createdAt: 1 });

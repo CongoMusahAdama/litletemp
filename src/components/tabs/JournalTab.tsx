@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { scopedSocket } from "@/lib/socket";
 import styles from "./JournalTab.module.css";
+import VoicePlayer from "../VoicePlayer";
 import { api, mediaUrl, uploadFile } from "@/lib/api";
 
 interface Entry {
@@ -421,7 +422,7 @@ export default function JournalTab({ triggerNewEntry }: Props) {
                 {openEntry.media.map((m, idx) => (
                   m.type === "image" ? <img key={idx} src={m.url} alt="" />
                   : m.type === "video" ? <video key={idx} src={m.url} controls playsInline />
-                  : <audio key={idx} src={m.url} controls />
+                  : <VoicePlayer key={idx} src={m.url} />
                 ))}
               </div>
             )}
@@ -595,7 +596,7 @@ export default function JournalTab({ triggerNewEntry }: Props) {
               return (
                 <div key={entry.id} className={styles.card} style={{ background: "var(--bg-card)", color: "var(--text-primary)", border: "1px solid var(--border)" }}>
                   <h3 className={styles.cardTitle} onClick={() => setOpenEntryId(entry.id)}>{entry.title}</h3>
-                  {audio && <audio src={audio.url} controls style={{ width: "100%", marginTop: 12 }} />}
+                  {audio && <div style={{ marginTop: 12 }}><VoicePlayer src={audio.url} /></div>}
                 </div>
               );
             })}

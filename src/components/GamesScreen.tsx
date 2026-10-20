@@ -5,6 +5,7 @@ import { scopedSocket, type ScopedSocket } from "@/lib/socket";
 import { api, mediaUrl, shownName, uploadFile } from "@/lib/api";
 import { useSession } from "@/context/SessionContext";
 import styles from "./GamesScreen.module.css";
+import VoicePlayer from "./VoicePlayer";
 
 type Kind = "same" | "know" | "turn" | "spicy" | "tod";
 
@@ -377,7 +378,7 @@ function ReplyMedia({ reply }: { reply: Reply }) {
   const src = mediaUrl(reply.mediaUrl);
   if (reply.mediaType === "image") return <img src={src} alt="" className={styles.replyMedia} />;
   if (reply.mediaType === "video") return <video src={src} className={styles.replyMedia} controls playsInline />;
-  return <audio src={src} controls className={styles.replyAudio} />;
+  return <div className={styles.replyAudio}><VoicePlayer src={src} /></div>;
 }
 
 function TruthOrDare({ view, partnerName, socket }: { view: GameView; partnerName: string; socket: ScopedSocket | null }) {

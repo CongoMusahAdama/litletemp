@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import styles from "./OnThisDay.module.css";
+import VoicePlayer from "./VoicePlayer";
 import { api, mediaUrl } from "@/lib/api";
 
 type Memory = {
@@ -75,7 +76,7 @@ export default function OnThisDay() {
             <span className={styles.viewerLabel}>{KIND_ICON[open.kind]} {open.label}</span>
             {showImage(open) && <img src={open.mediaUrl} alt="" className={styles.viewerMedia} />}
             {open.mediaType === "video" && open.mediaUrl && <video src={open.mediaUrl} className={styles.viewerMedia} controls playsInline />}
-            {open.mediaType === "audio" && open.mediaUrl && <audio src={open.mediaUrl} controls style={{ width: "100%" }} />}
+            {open.mediaType === "audio" && open.mediaUrl && <VoicePlayer src={open.mediaUrl} />}
             <h3 className={styles.viewerTitle}>{open.title}</h3>
             {open.text && <p className={styles.viewerText}>{open.text}</p>}
             <p className={styles.viewerDate}>
