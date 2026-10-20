@@ -28,13 +28,19 @@ async function getJson(url) {
   return response.json();
 }
 
+// ESPN crests are 500px (~70KB); its resizer serves a 96px copy (~12KB).
+function smallLogo(url) {
+  const match = String(url || '').match(/^https:\/\/a\.espncdn\.com(\/i\/teamlogos\/[^?]+)/);
+  return match ? `https://a.espncdn.com/combiner/i?img=${match[1]}&w=96&h=96` : String(url || '');
+}
+
 function side(competitor, state) {
   const team = competitor?.team || {};
   return {
     id: String(team.id || ''),
     name: team.displayName || team.name || '',
     short: team.shortDisplayName || team.abbreviation || team.displayName || '',
-    logo: team.logo || team.logos?.[0]?.href || '',
+    logo: smallLogo(team.logo || team.logos?.[0]?.href),
     score: state === 'pre' ? null : Number(competitor?.score ?? 0),
   };
 }
@@ -110,7 +116,7 @@ async function getTeams() {
         id: String(team.id),
         name: team.displayName,
         short: team.shortDisplayName || team.abbreviation,
-        logo: team.logos?.[0]?.href || '',
+        logo: smallLogo(team.logos?.[0]?.href),
         league,
         leagueName,
       }));

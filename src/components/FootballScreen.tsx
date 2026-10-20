@@ -44,8 +44,9 @@ const FILTERS = [
 ] as const;
 
 function Crest({ src, name, size = 34 }: { src?: string; name: string; size?: number }) {
-  return src
-    ? <img src={src} alt="" width={size} height={size} className={styles.crest} loading="lazy" />
+  const [broken, setBroken] = useState(false);
+  return src && !broken
+    ? <img src={src} alt={name} width={size} height={size} className={styles.crest} loading="lazy" onError={() => setBroken(true)} />
     : <span className={styles.crestBlank} style={{ width: size, height: size }}>{name.slice(0, 1)}</span>;
 }
 
