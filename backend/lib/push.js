@@ -73,7 +73,9 @@ async function notifyPartner(sender, couple, message) {
       ? 'Sent a photo'
       : message.type === 'video'
         ? 'Sent a video'
-        : 'Sent a voice note';
+        : message.type === 'sticker'
+          ? `Sent a sticker${message.text ? ` ${message.text}` : ''}`
+          : 'Sent a voice note';
   const payload = {
     unread,
     title: sender.username || sender.name || 'Little Temptation',

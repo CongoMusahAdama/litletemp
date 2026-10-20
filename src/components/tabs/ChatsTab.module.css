@@ -113,6 +113,54 @@
   background: #111;
 }
 
+/* Caption over the story, like WhatsApp */
+.storyCaption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  z-index: 2;
+  margin: 0;
+  padding: 12px 20px;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.55) 30%, rgba(0, 0, 0, 0.55) 70%, transparent);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.45;
+  text-align: center;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+.storyShare {
+  height: 46px;
+  padding: 0 20px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 23px;
+  background: #FF4081;
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.storyShare:disabled { opacity: 0.8; }
+
+.storySpinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: storySpin 0.75s linear infinite;
+}
+@keyframes storySpin { to { transform: rotate(360deg); } }
+
 .storyMissing {
   position: absolute;
   top: 46%;

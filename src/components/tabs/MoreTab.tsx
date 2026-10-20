@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import styles from "./MoreTab.module.css";
 import Swal from "sweetalert2";
 import { api, mediaUrl, setToken, uploadFile } from "@/lib/api";
@@ -168,6 +169,7 @@ export default function MoreTab() {
   const [anniversary, setAnniversary] = useState("");
   const fallbackAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "Us")}&background=FBBF24&color=1a1a1a&size=200&bold=true`;
   const [avatarSrc, setAvatarSrc] = useState(fallbackAvatar);
+  const [viewAvatar, setViewAvatar] = useState(false);
   const [name, setName] = useState(user?.name || "");
   const [username, setUsername] = useState(user?.username ? `@${user.username}` : "");
   const [isEditing, setIsEditing] = useState(false);
@@ -529,12 +531,14 @@ export default function MoreTab() {
         {/* Profile hero card */}
         <div className={styles.heroCard}>
           <div className={styles.heroAvatarWrap}>
-            <img
-              src={avatarSrc}
-              alt="avatar"
-              className={styles.heroAvatar}
-              onError={() => setAvatarSrc(fallbackAvatar)}
-            />
+            <button type="button" className={styles.heroAvatarBtn} onClick={() => setViewAvatar(true)} aria-label="View your profile picture">
+              <img
+                src={avatarSrc}
+                alt="avatar"
+                className={styles.heroAvatar}
+                onError={() => setAvatarSrc(fallbackAvatar)}
+              />
+            </button>
             <button className={styles.cameraBtn} onClick={() => fileRef.current?.click()}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
@@ -543,6 +547,21 @@ export default function MoreTab() {
             </button>
           </div>
           <input type="file" accept="image/*" ref={fileRef} onChange={handleAvatarChange} style={{ display: "none" }} />
+          {viewAvatar && createPortal(
+            <div className={styles.avatarViewer} onClick={() => setViewAvatar(false)}>
+              <div className={styles.avatarViewerTop} onClick={(event) => event.stopPropagation()}>
+                <button type="button" className={styles.avatarViewerBtn} onClick={() => setViewAvatar(false)} aria-label="Close">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+                <span>{name}</span>
+                <button type="button" className={styles.avatarViewerBtn} onClick={() => { setViewAvatar(false); fileRef.current?.click(); }} aria-label="Change profile picture">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>
+                </button>
+              </div>
+              <img src={avatarSrc} alt="Your profile picture" className={styles.avatarViewerImg} onClick={(event) => event.stopPropagation()} />
+            </div>,
+            document.body,
+          )}
           <div className={styles.heroInfo}>
             <h2 className={styles.heroName}>{name}</h2>
             <p className={styles.heroUsername}>{username}</p>

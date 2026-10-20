@@ -17,6 +17,7 @@ function present(story, viewerId) {
     authorId: story.authorId,
     mediaUrl: publicMedia(story.mediaUrl),
     mediaType: story.mediaType,
+    caption: story.caption || '',
     expiresAt: story.expiresAt,
     seen: story.seenBy.some((id) => String(id) === me),
     liked: (story.likes || []).some((id) => String(id) === me),
@@ -70,6 +71,7 @@ router.post('/', async (req, res, next) => {
       authorId: req.user._id,
       mediaUrl,
       mediaType: req.body.mediaType === 'video' ? 'video' : 'image',
+      caption: String(req.body.caption || '').trim().slice(0, 200),
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     });
     const payload = present(story, req.user._id);

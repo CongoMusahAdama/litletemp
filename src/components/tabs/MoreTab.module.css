@@ -95,6 +95,67 @@
   border: 3px solid #FF4081;
 }
 
+.heroAvatarBtn {
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: zoom-in;
+}
+.heroAvatarBtn:active { transform: scale(0.96); }
+
+/* Full-screen view of your own profile picture */
+.avatarViewer {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: avatarFade 0.2s ease;
+}
+@keyframes avatarFade { from { opacity: 0; } to { opacity: 1; } }
+
+.avatarViewerTop {
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top));
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #fff;
+  font-family: 'Sora', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.avatarViewerBtn {
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.avatarViewerBtn svg { width: 20px; height: 20px; }
+
+.avatarViewerImg {
+  width: 100%;
+  max-width: 430px;
+  max-height: 80dvh;
+  object-fit: contain;
+  animation: avatarZoom 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes avatarZoom { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
 .cameraBtn {
   position: absolute;
   bottom: -2px;

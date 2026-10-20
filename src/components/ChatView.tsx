@@ -6,6 +6,8 @@ import styles from "./ChatView.module.css";
 import { api, mediaUrl, shownName, uploadFile } from "@/lib/api";
 import { useSession } from "@/context/SessionContext";
 import EmojiPicker from "./EmojiPicker";
+import StickerPanel from "./StickerPanel";
+import { saveStickerFile } from "@/lib/stickers";
 import { useCoupleCall } from "@/hooks/useCoupleCall";
 import { showHomeBadge } from "@/lib/badge";
 import { noteAudio, playMessageNote, playSendTick } from "@/lib/note";
@@ -24,7 +26,7 @@ interface Props {
   onBack: () => void;
 }
 
-type MessageType = "text" | "voice" | "image" | "video" | "system";
+type MessageType = "text" | "voice" | "image" | "video" | "sticker" | "system";
 
 interface Message {
   id: string;
@@ -161,6 +163,9 @@ export default function ChatView({ onBack }: Props) {
   const [contextMenu, setContextMenu] = useState<{ msgId: string, anchor: MenuAnchor | null, isMe: boolean, width: number, height: number } | null>(null);
   const [pinChoices, setPinChoices] = useState(false);
   const [reactPickerFor, setReactPickerFor] = useState<Message | null>(null);
+  const [showStickers, setShowStickers] = useState(false);
+  const [pasted, setPasted] = useState<{ file: File; preview: string } | null>(null);
+  const [pasteBusy, setPasteBusy] = useState(false);
   const [holdMode, setHoldMode] = useState(false);
   const [slideX, setSlideX] = useState(0);
   const holdRef = useRef<{ x: number; y: number; at: number } | null>(null);
@@ -461,6 +466,48 @@ export default function ChatView({ onBack }: Props) {
       if (current) URL.revokeObjectURL(current.preview);
       return { file, kind: type, preview: URL.createObjectURL(file) };
     });
+  };
+
+  const sendSticker = (sticker: { mediaUrl?: string; emoji?: string }) => {
+    playSendTick();
+    stickToBottom.current = true;
+    socketRef.current?.emit("message:send", { type: "sticker", mediaUrl: sticker.mediaUrl, text: sticker.emoji });
+  };
+
+  const closePasted = () => {
+    if (pasted) URL.revokeObjectURL(pasted.preview);
+    setPasted(null);
+  };
+
+  const applyPasted = async (as: "sticker" | "save" | "photo") => {
+    if (!pasted || pasteBusy) return;
+    if (as === "photo") {
+      setDraftMedia({ file: pasted.file, kind: "image", preview: pasted.preview });
+      setPasted(null);
+      return;
+    }
+    setPasteBusy(true);
+    try {
+      const saved = await saveStickerFile(pasted.file);
+      if (as === "sticker") sendSticker({ mediaUrl: saved.mediaUrl });
+      else setStreakNote("Saved to your stickers ⭐");
+      closePasted();
+    } catch {
+      setStreakNote("Could not save that sticker");
+    } finally {
+      setPasteBusy(false);
+    }
+  };
+
+  // Long-press a sticker in the chat to keep it.
+  const keepSticker = async (msg: Message) => {
+    setContextMenu(null);
+    try {
+      await api("/api/stickers", { method: "POST", body: JSON.stringify({ mediaUrl: msg.mediaUrl }) });
+      setStreakNote("Saved to your stickers ⭐");
+    } catch {
+      setStreakNote("Could not save that sticker");
+    }
   };
 
   const sendDraft = async () => {
@@ -777,7 +824,8 @@ export default function ChatView({ onBack }: Props) {
   // Swipe left or right anywhere in the chat to go back to the chat list.
   const swipeBlocked = Boolean(
     contextMenu || selectedIds || viewer || showCamera || showStreak || showDaily || draftMedia
-    || call.phase !== "idle" || isRecording || partnerAvatarViewer || micAsk || showEmoji || reactPickerFor,
+    || call.phase !== "idle" || isRecording || partnerAvatarViewer || micAsk || showEmoji || reactPickerFor
+    || showStickers || pasted,
   );
 
   const onSwipeStart = (event: React.TouchEvent) => {
@@ -1069,6 +1117,7 @@ export default function ChatView({ onBack }: Props) {
               ? [{ key: "unpin", label: "Unpin", icon: MenuIcon.pin, run: handleUnpin }]
               : live ? [{ key: "pin", label: "Pin", icon: MenuIcon.pin, run: () => setPinChoices(true) }] : []),
             ...(contextMenu.isMe && live && target.type === "text" ? [{ key: "edit", label: "Edit", icon: MenuIcon.edit, run: () => handleEditMessage(target) }] : []),
+            ...(live && target.type === "sticker" && target.mediaUrl ? [{ key: "keep", label: "Save sticker", icon: MenuIcon.save, run: () => void keepSticker(target) }] : []),
             ...(live && !target.viewOnce && target.mediaUrl && (target.type === "image" || target.type === "video")
               ? [{ key: "save", label: "Save to phone", icon: MenuIcon.save, run: () => void saveToPhone(target.mediaUrl || "", target.type === "video" ? "video" : "image") }]
               : []),
@@ -1299,7 +1348,7 @@ export default function ChatView({ onBack }: Props) {
                     <div className={styles.quote}>
                       <div className={styles.quoteName}>{repliedMsg.from === "me" ? "You" : chatTitle}</div>
                       <div className={styles.quoteText}>
-                        {repliedMsg.isDeleted ? "Deleted message" : repliedMsg.type === "text" ? repliedMsg.text : repliedMsg.type === "voice" ? "Voice note" : repliedMsg.type === "image" ? "Photo" : "Video"}
+                        {repliedMsg.isDeleted ? "Deleted message" : repliedMsg.type === "text" ? repliedMsg.text : repliedMsg.type === "voice" ? "Voice note" : repliedMsg.type === "image" ? "Photo" : repliedMsg.type === "sticker" ? `Sticker ${repliedMsg.text || ""}` : "Video"}
                       </div>
                     </div>
                   )}
@@ -1372,6 +1421,18 @@ export default function ChatView({ onBack }: Props) {
                         </span>
                       </div>
                     ) : null
+                  )}
+
+                  {msg.type === "sticker" && (
+                    <div className={styles.stickerMsg}>
+                      {msg.mediaUrl
+                        ? <img src={msg.mediaUrl} alt="Sticker" className={styles.stickerImg} loading="lazy" />
+                        : <span className={styles.stickerEmoji}>{msg.text}</span>}
+                      <span className={styles.stickerTime}>
+                        {msg.time}
+                        {msg.from === "me" && <DoubleCheck read={msg.read} />}
+                      </span>
+                    </div>
                   )}
 
                   {msg.type === "text" && msg.text && (
@@ -1490,6 +1551,24 @@ export default function ChatView({ onBack }: Props) {
       )}
 
       {showEmoji && <EmojiPicker onPick={addEmoji} onClose={() => setShowEmoji(false)} />}
+      {showStickers && <StickerPanel onSend={sendSticker} onClose={() => setShowStickers(false)} />}
+
+      {pasted && (
+        <div className={styles.pasteScrim} onClick={closePasted}>
+          <div className={styles.pasteSheet} onClick={(event) => event.stopPropagation()}>
+            <img src={pasted.preview} alt="Pasted" className={styles.pastePreview} />
+            <p className={styles.pasteTitle}>Use this picture as…</p>
+            <div className={styles.pasteActions}>
+              <button type="button" className={styles.pastePrimary} onClick={() => void applyPasted("sticker")} disabled={pasteBusy}>
+                {pasteBusy ? "Sending…" : "Send as sticker"}
+              </button>
+              <button type="button" onClick={() => void applyPasted("save")} disabled={pasteBusy}>⭐ Save to my stickers</button>
+              <button type="button" onClick={() => void applyPasted("photo")} disabled={pasteBusy}>Send as a photo</button>
+              <button type="button" className={styles.pasteCancel} onClick={closePasted}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
       {reactPickerFor && <EmojiPicker onPick={(emoji) => reactTo(reactPickerFor, emoji)} onClose={() => setReactPickerFor(null)} />}
 
       {/* Attach panel */}
@@ -1540,7 +1619,7 @@ export default function ChatView({ onBack }: Props) {
                 {editingMsgId ? "Editing Message" : `Replying to ${replyingToMsg?.from === "me" ? "yourself" : chatTitle}`}
               </span>
               <span className={styles.replyText}>
-                {editingMsgId ? messages.find(m => m.id === editingMsgId)?.text : (replyingToMsg?.type === "text" ? replyingToMsg.text : `[${replyingToMsg?.type}]`)}
+                {editingMsgId ? messages.find(m => m.id === editingMsgId)?.text : (replyingToMsg?.type === "text" ? replyingToMsg.text : replyingToMsg?.type === "sticker" ? `Sticker ${replyingToMsg.text || ""}` : `[${replyingToMsg?.type}]`)}
               </span>
             </div>
             <button
@@ -1622,7 +1701,30 @@ export default function ChatView({ onBack }: Props) {
                     growComposer(e.target);
                     socketRef.current?.emit("typing", e.target.value.length > 0);
                   }}
+                  onPaste={(event) => {
+                    // A pasted image (e.g. a sticker copied in WhatsApp) can become a sticker.
+                    const file = Array.from(event.clipboardData.files).find((item) => item.type.startsWith("image/"));
+                    if (!file) return;
+                    event.preventDefault();
+                    setPasted({ file, preview: URL.createObjectURL(file) });
+                  }}
                 />
+                {!input.trim() && !editingMsgId && (
+                  <button
+                    type="button"
+                    className={`${styles.emojiToggle} ${showStickers ? styles.emojiToggleOn : ""}`}
+                    aria-label={showStickers ? "Close stickers" : "Stickers"}
+                    onClick={() => { setShowStickers((open) => !open); setShowEmoji(false); setShowAttach(false); }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M15.5 3H8a5 5 0 0 0-5 5v8a5 5 0 0 0 5 5h4.5L21 12.5V8.5A5.5 5.5 0 0 0 15.5 3z" />
+                      <path d="M12.5 21v-3.5a5 5 0 0 1 5-5H21" />
+                      <path d="M8 11.5s1 1.5 2.5 1.5S13 11.5 13 11.5" />
+                      <line x1="8.5" y1="8" x2="8.51" y2="8" />
+                      <line x1="12.5" y1="8" x2="12.51" y2="8" />
+                    </svg>
+                  </button>
+                )}
                 {!input.trim() && !editingMsgId && (
                   <button
                     type="button"
@@ -1651,7 +1753,7 @@ export default function ChatView({ onBack }: Props) {
                 <button
                   className={`${styles.emojiToggle} ${showEmoji ? styles.emojiToggleOn : ""}`}
                   aria-label={showEmoji ? "Close emojis" : "Emojis"}
-                  onClick={() => { setShowEmoji((open) => !open); setShowAttach(false); }}
+                  onClick={() => { setShowEmoji((open) => !open); setShowAttach(false); setShowStickers(false); }}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="9" />

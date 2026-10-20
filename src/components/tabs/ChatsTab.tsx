@@ -45,6 +45,7 @@ type Story = {
   authorId: string;
   mediaUrl: string;
   mediaType: "image" | "video";
+  caption?: string;
   seen: boolean;
   liked?: boolean;
   likeCount?: number;
@@ -60,6 +61,8 @@ export default function ChatsTab({ onOpenChat }: Props) {
   const [watching, setWatching] = useState<Story | null>(null);
   const [comment, setComment] = useState("");
   const [adding, setAdding] = useState(false);
+  const [storyDraft, setStoryDraft] = useState<{ file: File; preview: string; video: boolean } | null>(null);
+  const [caption, setCaption] = useState("");
   const [storyBroken, setStoryBroken] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const { daily, answer } = useDaily();
@@ -125,7 +128,15 @@ export default function ChatsTab({ onOpenChat }: Props) {
   const mine = stories.filter((story) => String(story.authorId) === String(user?.id));
   const theirs = stories.filter((story) => String(story.authorId) !== String(user?.id));
 
-  const addStory = async (file: File) => {
+  const closeDraft = () => {
+    if (storyDraft) URL.revokeObjectURL(storyDraft.preview);
+    setStoryDraft(null);
+    setCaption("");
+  };
+
+  const addStory = async () => {
+    if (!storyDraft || adding) return;
+    const { file } = storyDraft;
     setAdding(true);
     try {
       const uploaded = await uploadFile(file);
@@ -134,9 +145,13 @@ export default function ChatsTab({ onOpenChat }: Props) {
         body: JSON.stringify({
           mediaUrl: uploaded.url,
           mediaType: file.type.startsWith("video") ? "video" : "image",
+          caption: caption.trim(),
         }),
       });
       setStories((prev) => [story, ...prev]);
+      closeDraft();
+    } catch {
+      // Keep the draft so it can be shared again.
     } finally {
       setAdding(false);
     }
@@ -193,9 +208,11 @@ export default function ChatsTab({ onOpenChat }: Props) {
   const partnerName = shownName(partner) || summaryPartner || invitedName || "My Babe";
   const summaryPhoto = summary?.partner && String(summary.partner.id) !== String(user?.id) ? summary.partner.avatarUrl : "";
   const partnerPhoto = partner?.avatarUrl || summaryPhoto || "";
-  const preview = summary?.lastMessage
-    ? (summary.lastMessage.text || `[${summary.lastMessage.type}]`)
-    : "Say something sweet";
+  const lastType = summary?.lastMessage?.type;
+  const preview = !summary?.lastMessage ? "Say something sweet"
+    : lastType === "sticker" ? `${summary.lastMessage.text || "🌟"} Sticker`
+    : summary.lastMessage.text
+      || (lastType === "image" ? "📷 Photo" : lastType === "video" ? "🎥 Video" : lastType === "voice" ? "🎤 Voice note" : "Message");
   return (
     <div className={styles.tab}>
       {/* Header */}
@@ -230,7 +247,7 @@ export default function ChatsTab({ onOpenChat }: Props) {
             onChange={(event) => {
               const file = event.target.files?.[0];
               event.target.value = "";
-              if (file) addStory(file);
+              if (file) setStoryDraft({ file, preview: URL.createObjectURL(file), video: file.type.startsWith("video") });
             }}
           />
 
@@ -344,6 +361,36 @@ export default function ChatsTab({ onOpenChat }: Props) {
         document.body,
       )}
 
+      {storyDraft && (
+        <div className={styles.viewer}>
+          <button type="button" className={styles.viewerClose} onClick={closeDraft} aria-label="Discard story">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+          {storyDraft.video
+            ? <video src={storyDraft.preview} className={styles.viewerMedia} autoPlay loop muted playsInline />
+            : <img src={storyDraft.preview} alt="" className={styles.viewerMedia} />}
+          {caption.trim() && <p className={styles.storyCaption}>{caption}</p>}
+          <div className={styles.viewerDock}>
+            <form className={styles.viewerRow} onSubmit={(event) => { event.preventDefault(); void addStory(); }}>
+              <input
+                className={styles.viewerInput}
+                placeholder="Add a caption…"
+                value={caption}
+                onChange={(event) => setCaption(event.target.value)}
+                maxLength={200}
+                autoFocus
+              />
+              <button type="submit" className={styles.storyShare} disabled={adding}>
+                {adding ? <span className={styles.storySpinner} /> : "Share"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {watching && (
         <div className={styles.viewer}>
           <button type="button" className={styles.viewerClose} onClick={() => setWatching(null)} aria-label="Close story">
@@ -356,6 +403,7 @@ export default function ChatsTab({ onOpenChat }: Props) {
           {watching.mediaType === "video"
             ? <video src={mediaUrl(watching.mediaUrl)} className={styles.viewerMedia} autoPlay playsInline onError={() => setStoryBroken(true)} />
             : <img src={mediaUrl(watching.mediaUrl)} alt="" className={styles.viewerMedia} onError={() => setStoryBroken(true)} />}
+          {watching.caption && <p className={styles.storyCaption}>{watching.caption}</p>}
           <div className={styles.viewerDock}>
             {String(watching.authorId) === String(user?.id) ? (
               !!watching.reactions?.length && (

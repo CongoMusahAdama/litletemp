@@ -5,6 +5,7 @@ const storySchema = new mongoose.Schema({
   authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   mediaUrl: { type: String, required: true },
   mediaType: { type: String, enum: ['image', 'video'], default: 'image' },
+  caption: { type: String, default: '', maxlength: 200 },
   expiresAt: { type: Date, required: true },
   seenBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],

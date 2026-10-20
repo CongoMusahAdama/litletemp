@@ -3,15 +3,21 @@ const { presentMessage, bareUpload } = require('./present');
 const { touchStreak } = require('./couple');
 
 async function saveMessage(user, couple, body) {
-  const type = ['text', 'voice', 'image', 'video'].includes(body.type) ? body.type : 'text';
-  const text = body.text ? String(body.text).trim().slice(0, 4000) : '';
+  const type = ['text', 'voice', 'image', 'video', 'sticker'].includes(body.type) ? body.type : 'text';
+  const text = body.text ? String(body.text).trim().slice(0, type === 'sticker' ? 16 : 4000) : '';
   const mediaUrl = body.mediaUrl ? bareUpload(body.mediaUrl) : '';
   if (type === 'text' && !text) {
     const error = new Error('Message cannot be empty');
     error.status = 400;
     throw error;
   }
-  if (type !== 'text' && !mediaUrl) {
+  // A sticker is either an image or one big emoji from the built-in pack.
+  if (type === 'sticker' && !mediaUrl && !text) {
+    const error = new Error('Pick a sticker');
+    error.status = 400;
+    throw error;
+  }
+  if (type !== 'text' && type !== 'sticker' && !mediaUrl) {
     const error = new Error('Media is required');
     error.status = 400;
     throw error;
@@ -23,7 +29,7 @@ async function saveMessage(user, couple, body) {
     type,
     mediaUrl: mediaUrl || undefined,
     replyToId: body.replyToId || undefined,
-    viewOnce: type !== 'text' && Boolean(body.viewOnce),
+    viewOnce: type !== 'text' && type !== 'sticker' && Boolean(body.viewOnce),
   });
   const streak = await touchStreak(couple, user._id);
   const { getIo } = require('../socket');
