@@ -1,9 +1,9 @@
 "use client";
 
 import { Fragment, useState, useRef, useEffect, type ReactNode } from "react";
-import { io, Socket } from "socket.io-client";
+import { scopedSocket, type ScopedSocket } from "@/lib/socket";
 import styles from "./ChatView.module.css";
-import { API_URL, api, getToken, mediaUrl, shownName, uploadFile } from "@/lib/api";
+import { api, mediaUrl, shownName, uploadFile } from "@/lib/api";
 import { useSession } from "@/context/SessionContext";
 import EmojiPicker from "./EmojiPicker";
 import { useCoupleCall } from "@/hooks/useCoupleCall";
@@ -17,6 +17,7 @@ import { useDaily } from "@/hooks/useDaily";
 import { saveMedia } from "@/lib/saveMedia";
 import ViewOnceIcon from "./ViewOnceIcon";
 import { clockTime, dayLabel, sameDay } from "@/lib/chatDates";
+import { readChatCache, writeChatCache } from "@/lib/chatCache";
 
 interface Props {
   onBack: () => void;
@@ -39,9 +40,31 @@ interface Message {
   viewOnce?: boolean;
   viewedByPartner?: boolean;
   createdAt?: string;
+  /** Shown straight away while the server saves it. */
+  pending?: boolean;
+  failed?: boolean;
 }
 
 type ServerMessage = Omit<Message, "from"> & { senderId: string };
+
+let tempCounter = 0;
+
+// A local copy of a text message so it shows the moment you tap send.
+function draftMessage(text: string, replyToId: string | undefined, senderId: string | undefined, id?: string): Message {
+  tempCounter += 1;
+  const now = new Date().toISOString();
+  return {
+    id: id || `tmp-${Date.now()}-${tempCounter}`,
+    senderId,
+    text,
+    type: "text",
+    from: "me",
+    time: clockTime(now),
+    createdAt: now,
+    replyToId: replyToId || null,
+    pending: true,
+  };
+}
 
 type ChatPin = { id: string; preview: string; until: string };
 
@@ -108,12 +131,13 @@ export default function ChatView({ onBack }: Props) {
   const { user, partner, couple, refresh } = useSession();
   const partnerRef = useRef(partner);
   partnerRef.current = partner;
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(() => readChatCache<Message>(user?.id).filter((item) => !item.pending && !item.failed));
+  const [connected, setConnected] = useState(false);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const [socket, setSocket] = useState<ScopedSocket | null>(null);
   const call = useCoupleCall(socket);
   const [swapVideos, setSwapVideos] = useState(false);
   const [callChrome, setCallChrome] = useState(true);
@@ -134,6 +158,7 @@ export default function ChatView({ onBack }: Props) {
   const [showStreak, setShowStreak] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const swipeRef = useRef<{ x: number; y: number; at: number; active: boolean; locked: boolean } | null>(null);
   const { daily, answer: answerDaily } = useDaily();
   const [showDaily, setShowDaily] = useState(false);
   const lastTap = useRef<{ id: string; at: number }>({ id: "", at: 0 });
@@ -180,8 +205,8 @@ export default function ChatView({ onBack }: Props) {
   const wallpaperInputRef = useRef<HTMLInputElement>(null);
   const wallpaperTried = useRef(false);
 
-  // Socket state
-  const socketRef = useRef<Socket | null>(null);
+  // ScopedSocket state
+  const socketRef = useRef<ScopedSocket | null>(null);
   const hasMoreRef = useRef(false);
   const loadingOlder = useRef(false);
   const messagesStateRef = useRef(messages);
@@ -201,9 +226,10 @@ export default function ChatView({ onBack }: Props) {
     api<{ messages: ServerMessage[]; hasMore: boolean }>("/api/chat/messages")
       .then((page) => {
         hasMoreRef.current = page.hasMore;
-        setMessages(page.messages.map(asView));
+        // Keep anything still sending; it isn't on the server yet.
+        setMessages((prev) => [...page.messages.map(asView), ...prev.filter((item) => item.pending || item.failed)]);
       })
-      .catch(() => setMessages([]));
+      .catch(() => undefined);
     api("/api/chat/read", { method: "POST" }).catch(() => undefined);
     api<{ message: ServerMessage | null; preview?: string; until?: string }>("/api/chat/pin")
       .then((data) => {
@@ -212,11 +238,25 @@ export default function ChatView({ onBack }: Props) {
       })
       .catch(() => undefined);
 
-    const socket = io(API_URL, { auth: { token: getToken() } });
+    const socket = scopedSocket();
     socketRef.current = socket;
     setSocket(socket);
+    socket.on("connect", () => setConnected(true));
+    socket.on("disconnect", () => setConnected(false));
     socket.on("message:new", (data: ServerMessage) => {
-      setMessages((prev) => prev.some((item) => item.id === String(data.id)) ? prev : [...prev, asView(data)]);
+      setMessages((prev) => {
+        if (prev.some((item) => item.id === String(data.id))) return prev;
+        // Our own message coming back: swap it in for the copy shown while sending.
+        if (String(data.senderId) === String(user.id)) {
+          const index = prev.findIndex((item) => item.pending && item.type === data.type && item.text === data.text);
+          if (index >= 0) {
+            const next = [...prev];
+            next[index] = asView(data);
+            return next;
+          }
+        }
+        return [...prev, asView(data)];
+      });
       setIsTyping(false);
       if (String(data.senderId) !== String(user.id)) {
         playMessageNote();
@@ -232,8 +272,6 @@ export default function ChatView({ onBack }: Props) {
             new Notification(title, { body: String(body).slice(0, 140), icon, silent: true });
           }
         }
-      } else {
-        playSendTick();
       }
     });
     socket.on("message:updated", (data: ServerMessage) => {
@@ -282,6 +320,10 @@ export default function ChatView({ onBack }: Props) {
       socket.disconnect();
     };
   }, [user]);
+
+  useEffect(() => {
+    writeChatCache(user?.id, messages.filter((item) => !item.pending && !item.failed));
+  }, [messages, user?.id]);
 
   useEffect(() => {
     if (!call.notice) return;
@@ -374,7 +416,27 @@ export default function ChatView({ onBack }: Props) {
     if (messageInputRef.current) messageInputRef.current.style.height = "";
     setReplyingToMsg(null);
     socketRef.current?.emit("typing", false);
-    socketRef.current?.emit("message:send", { text: input.trim(), type: "text", replyToId });
+    sendText(input.trim(), replyToId);
+  };
+
+  const sendText = (text: string, replyToId?: string, retryId?: string) => {
+    const draft = draftMessage(text, replyToId, user?.id, retryId);
+    setMessages((prev) => retryId ? prev.map((item) => item.id === retryId ? draft : item) : [...prev, draft]);
+    stickToBottom.current = true;
+    playSendTick();
+    const fail = () => setMessages((prev) => prev.map((item) => item.id === draft.id && item.pending ? { ...item, pending: false, failed: true } : item));
+    const timer = window.setTimeout(fail, 20000);
+    socketRef.current?.emit("message:send", { text, type: "text", replyToId }, (result: { message?: ServerMessage; error?: string }) => {
+      window.clearTimeout(timer);
+      if (!result?.message) {
+        fail();
+        return;
+      }
+      const saved = asView(result.message);
+      setMessages((prev) => prev.some((item) => item.id === saved.id)
+        ? prev.filter((item) => item.id !== draft.id)
+        : prev.map((item) => item.id === draft.id ? saved : item));
+    });
   };
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>, type: "image" | "video") => {
@@ -487,7 +549,7 @@ export default function ChatView({ onBack }: Props) {
   const menuOpenedAt = useRef(0);
 
   const openMessageMenu = (msg: Message, target?: HTMLElement) => {
-    if (selectedIds) return;
+    if (selectedIds || msg.pending || msg.failed) return;
     menuOpenedAt.current = Date.now();
     const root = rootRef.current?.getBoundingClientRect();
     const rect = target?.getBoundingClientRect();
@@ -641,8 +703,72 @@ export default function ChatView({ onBack }: Props) {
     lastDay = msg.createdAt;
   });
 
+  // Swipe left or right anywhere in the chat to go back to the chat list.
+  const swipeBlocked = Boolean(
+    contextMenu || selectedIds || viewer || showCamera || showStreak || showDaily || draftMedia
+    || call.phase !== "idle" || isRecording || partnerAvatarViewer || micAsk || showEmoji,
+  );
+
+  const onSwipeStart = (event: React.TouchEvent) => {
+    if (swipeBlocked) return;
+    if ((event.target as HTMLElement).closest("textarea, input, [data-no-swipe]")) return;
+    const point = event.touches[0];
+    swipeRef.current = { x: point.clientX, y: point.clientY, at: event.timeStamp, active: false, locked: false };
+  };
+
+  const onSwipeMove = (event: React.TouchEvent) => {
+    const swipe = swipeRef.current;
+    if (!swipe || swipe.locked) return;
+    const point = event.touches[0];
+    const dx = point.clientX - swipe.x;
+    const dy = point.clientY - swipe.y;
+    if (!swipe.active) {
+      if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) {
+        swipe.locked = true;
+        return;
+      }
+      if (Math.abs(dx) < 14 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+      swipe.active = true;
+    }
+    const el = rootRef.current;
+    if (!el) return;
+    el.style.transition = "none";
+    el.style.transform = `translateX(${dx}px)`;
+    el.style.opacity = String(1 - Math.min(0.35, Math.abs(dx) / 700));
+  };
+
+  const onSwipeEnd = (event: React.TouchEvent) => {
+    const swipe = swipeRef.current;
+    swipeRef.current = null;
+    if (!swipe?.active) return;
+    const dx = event.changedTouches[0].clientX - swipe.x;
+    const speed = Math.abs(dx) / Math.max(1, event.timeStamp - swipe.at);
+    const el = rootRef.current;
+    if (Math.abs(dx) > 110 || (Math.abs(dx) > 50 && speed > 0.6)) {
+      if (el) {
+        el.style.transition = "transform 0.2s ease, opacity 0.2s ease";
+        el.style.transform = `translateX(${dx < 0 ? "-100%" : "100%"})`;
+        el.style.opacity = "0";
+      }
+      window.setTimeout(onBack, 170);
+      return;
+    }
+    if (el) {
+      el.style.transition = "transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease";
+      el.style.transform = "";
+      el.style.opacity = "";
+    }
+  };
+
   return (
-    <div ref={rootRef} className={styles.chatView}>
+    <div
+      ref={rootRef}
+      className={styles.chatView}
+      onTouchStart={onSwipeStart}
+      onTouchMove={onSwipeMove}
+      onTouchEnd={onSwipeEnd}
+      onTouchCancel={onSwipeEnd}
+    >
       
       {/* ── Call Overlay ── */}
       {call.phase !== "idle" && (() => {
@@ -799,7 +925,7 @@ export default function ChatView({ onBack }: Props) {
             </button>
           </div>
           <p className={styles.chatStatus} style={{ color: partnerOnline ? '#22c55e' : '#ef4444' }}>
-            {partnerOnline ? "Online" : couple?.status === "pending" ? "Waiting to join" : "Offline"}
+            {!connected ? "Connecting…" : partnerOnline ? "Online" : couple?.status === "pending" ? "Waiting to join" : "Offline"}
           </p>
         </div>
 
@@ -1136,9 +1262,18 @@ export default function ChatView({ onBack }: Props) {
                       <span className={styles.bubbleTime}>
                         {msg.isEdited && <span style={{ marginRight: '4px', opacity: 0.6 }}>Edited</span>}
                         {msg.time}
-                        {msg.from === "me" && <DoubleCheck read={msg.read} />}
+                        {msg.from === "me" && (msg.pending ? <PendingClock /> : msg.failed ? <span className={styles.failedMark}>!</span> : <DoubleCheck read={msg.read} />)}
                       </span>
                     </div>
+                  )}
+                  {msg.failed && (
+                    <button
+                      type="button"
+                      className={styles.retryBtn}
+                      onClick={(event) => { event.stopPropagation(); sendText(msg.text || "", msg.replyToId || undefined, msg.id); }}
+                    >
+                      Not sent · Tap to retry
+                    </button>
                   )}
                 </div>
               )}
@@ -1514,7 +1649,7 @@ function VoiceNote({ src, mine }: { src: string; mine: boolean }) {
 
   return (
     // Taps here control playback; they shouldn't count toward double-tap-for-menu.
-    <div className={`${styles.voiceMsg} ${mine ? styles.voiceMine : ""}`} onClick={(event) => event.stopPropagation()}>
+    <div className={`${styles.voiceMsg} ${mine ? styles.voiceMine : ""}`} onClick={(event) => event.stopPropagation()} data-no-swipe>
       <audio
         ref={audioRef}
         src={src}
@@ -1601,6 +1736,15 @@ function OnceChip({ msg, label, openedLabel = "Opened", onOpen }: { msg: Message
         {mine && <DoubleCheck read={msg.read} />}
       </span>
     </button>
+  );
+}
+
+function PendingClock() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" style={{ flexShrink: 0, opacity: 0.55 }} aria-label="Sending">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
   );
 }
 

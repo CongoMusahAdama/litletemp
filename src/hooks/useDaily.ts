@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { io } from "socket.io-client";
-import { API_URL, api, getToken } from "@/lib/api";
+import { scopedSocket } from "@/lib/socket";
+import { api } from "@/lib/api";
 
 export type Daily = {
   day: string;
@@ -21,7 +21,7 @@ export function useDaily() {
     // The question changes at midnight, so check again when the app comes back.
     const onVisible = () => { if (document.visibilityState === "visible") load(); };
     document.addEventListener("visibilitychange", onVisible);
-    const socket = io(API_URL, { auth: { token: getToken() } });
+    const socket = scopedSocket();
     socket.on("daily:updated", (next: Daily) => setDaily(next));
     return () => {
       document.removeEventListener("visibilitychange", onVisible);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Socket } from "socket.io-client";
+import type { ScopedSocket } from "@/lib/socket";
 import { playConnectBeep, playEndBeep, startRingback, startRingtone } from "@/lib/callSounds";
 
 export type CallKind = "voice" | "video";
@@ -29,7 +29,7 @@ const ICE: RTCConfiguration = {
   ],
 };
 
-export function useCoupleCall(socket: Socket | null) {
+export function useCoupleCall(socket: ScopedSocket | null) {
   const [phase, setPhase] = useState<CallPhase>("idle");
   const [callType, setCallType] = useState<CallKind>("voice");
   const [muted, setMuted] = useState(false);

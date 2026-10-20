@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { io } from "socket.io-client";
+import { scopedSocket } from "@/lib/socket";
 import styles from "./ChatsTab.module.css";
-import { API_URL, api, getToken, mediaUrl, shownName, uploadFile } from "@/lib/api";
+import { api, mediaUrl, shownName, uploadFile } from "@/lib/api";
 import { useSession } from "@/context/SessionContext";
 import { useDaily } from "@/hooks/useDaily";
 import DailyQuestion from "../DailyQuestion";
@@ -81,7 +81,7 @@ export default function ChatsTab({ onOpenChat }: Props) {
       }
     };
     document.addEventListener("visibilitychange", reloadStories);
-    const socket = io(API_URL, { auth: { token: getToken() } });
+    const socket = scopedSocket();
     const apply = (story: Story) => {
       setStories((prev) => prev.some((item) => item.id === story.id) ? prev.map((item) => item.id === story.id ? story : item) : [story, ...prev]);
       setWatching((current) => current && current.id === story.id ? story : current);

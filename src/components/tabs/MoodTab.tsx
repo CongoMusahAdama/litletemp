@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { io } from "socket.io-client";
+import { scopedSocket } from "@/lib/socket";
 import styles from "./MoodTab.module.css";
-import { API_URL, api, getToken, shownName } from "@/lib/api";
+import { api, shownName } from "@/lib/api";
 import { useSession } from "@/context/SessionContext";
 
 // SVG face component — expression changes per mood
@@ -199,7 +199,7 @@ export default function MoodTab() {
 
   useEffect(() => {
     if (!user) return;
-    const socket = io(API_URL, { auth: { token: getToken() } });
+    const socket = scopedSocket();
     socket.on("mood:updated", (payload: { date: string; mood: string; userId: string }) => {
       if (String(payload.userId) === String(user.id)) return;
       const todayKey = new Date().toISOString().slice(0, 10);

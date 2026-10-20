@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { io } from "socket.io-client";
+import { scopedSocket } from "@/lib/socket";
 import styles from "./JournalTab.module.css";
-import { API_URL, api, getToken, mediaUrl, uploadFile } from "@/lib/api";
+import { api, mediaUrl, uploadFile } from "@/lib/api";
 
 interface Entry {
   id: string;
@@ -101,7 +101,7 @@ export default function JournalTab({ triggerNewEntry }: Props) {
       .then((rows) => setWishlist(rows.map(formatWish)))
       .catch(() => undefined);
 
-    const socket = io(API_URL, { auth: { token: getToken() } });
+    const socket = scopedSocket();
     socket.on("journal:new", (row: ServerEntry) => {
       const formatted = formatEntry(row);
       setEntries((prev) => [formatted, ...prev.filter((e) => e.id !== formatted.id)]);

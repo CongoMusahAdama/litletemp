@@ -1731,3 +1731,31 @@
 }
 .recordSend svg { width: 20px; height: 20px; margin-left: 2px; }
 .recordSend:active { transform: scale(0.94); }
+
+/* ── Sending state ── */
+.failedMark {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.retryBtn {
+  margin-top: 4px;
+  border: 0;
+  background: transparent;
+  color: #ef4444;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+

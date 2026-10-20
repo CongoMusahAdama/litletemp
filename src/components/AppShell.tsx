@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { io } from "socket.io-client";
+import { scopedSocket } from "@/lib/socket";
 import BottomNav from "./BottomNav";
 import ChatsTab from "./tabs/ChatsTab";
 import JournalTab from "./tabs/JournalTab";
@@ -10,7 +10,7 @@ import MoreTab from "./tabs/MoreTab";
 import ChatView from "./ChatView";
 import styles from "./AppShell.module.css";
 import { useSession } from "@/context/SessionContext";
-import { API_URL, getToken, PublicUser } from "@/lib/api";
+import { PublicUser } from "@/lib/api";
 import { applyBubble } from "@/lib/bubbles";
 import { playMessageNote } from "@/lib/note";
 import HomeBadge from "./HomeBadge";
@@ -37,7 +37,7 @@ export default function AppShell() {
 
   useEffect(() => {
     if (!user?.id) return;
-    const socket = io(API_URL, { auth: { token: getToken() } });
+    const socket = scopedSocket();
     const pull = () => { refreshRef.current().catch(() => undefined); };
     socket.on("connect", pull);
     socket.on("partner:updated", pull);

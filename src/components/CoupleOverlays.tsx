@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { io } from "socket.io-client";
+import { scopedSocket } from "@/lib/socket";
 import styles from "./CoupleOverlays.module.css";
-import { API_URL, api, getToken, setToken, shownName } from "@/lib/api";
+import { api, setToken, shownName } from "@/lib/api";
 import { useSession } from "@/context/SessionContext";
 
 const FACES: Record<string, string> = {
@@ -194,7 +194,7 @@ export function MoodPopup() {
       })
       .catch(() => undefined);
 
-    const socket = io(API_URL, { auth: { token: getToken() } });
+    const socket = scopedSocket();
     socket.on("mood:updated", (payload: { mood: string; userId: string; name?: string }) => {
       const mine = String(payload.userId) === String(user.id);
       setNotice({

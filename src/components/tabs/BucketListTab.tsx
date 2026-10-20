@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { io } from "socket.io-client";
+import { scopedSocket } from "@/lib/socket";
 import styles from "./BucketListTab.module.css";
-import { API_URL, api, getToken } from "@/lib/api";
+import { api } from "@/lib/api";
 
 interface BucketItem {
   id: string;
@@ -46,7 +46,7 @@ export default function BucketListTab() {
     api<BucketItem[]>("/api/bucket")
       .then((rows) => setItems(rows.map((row) => ({ ...row, id: String(row.id) }))))
       .catch(() => undefined);
-    const socket = io(API_URL, { auth: { token: getToken() } });
+    const socket = scopedSocket();
     socket.on("bucket:new", upsert);
     socket.on("bucket:updated", upsert);
     socket.on("bucket:deleted", ({ id }: { id: string }) => setItems((prev) => prev.filter((row) => row.id !== String(id))));

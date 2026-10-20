@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { io, Socket } from "socket.io-client";
-import { API_URL, api, getToken, mediaUrl, shownName, uploadFile } from "@/lib/api";
+import { scopedSocket, type ScopedSocket } from "@/lib/socket";
+import { api, mediaUrl, shownName, uploadFile } from "@/lib/api";
 import { useSession } from "@/context/SessionContext";
 import styles from "./GamesScreen.module.css";
 
@@ -54,7 +54,7 @@ export default function GamesScreen({ onBack }: { onBack: () => void }) {
   const { partner } = useSession();
   const partnerName = shownName(partner, "them");
   const [view, setView] = useState<GameView | null>(null);
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const [socket, setSocket] = useState<ScopedSocket | null>(null);
   const [mine, setMine] = useState("");
   const [guess, setGuess] = useState("");
   const [draft, setDraft] = useState("");
@@ -62,7 +62,7 @@ export default function GamesScreen({ onBack }: { onBack: () => void }) {
   const roundKey = useRef("");
 
   useEffect(() => {
-    const next = io(API_URL, { auth: { token: getToken() } });
+    const next = scopedSocket();
     setSocket(next);
     next.on("game:state", (state: GameView | null) => {
       const key = state ? `${state.kind}:${state.round}:${state.finished}` : "";
@@ -380,7 +380,7 @@ function ReplyMedia({ reply }: { reply: Reply }) {
   return <audio src={src} controls className={styles.replyAudio} />;
 }
 
-function TruthOrDare({ view, partnerName, socket }: { view: GameView; partnerName: string; socket: Socket | null }) {
+function TruthOrDare({ view, partnerName, socket }: { view: GameView; partnerName: string; socket: ScopedSocket | null }) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");

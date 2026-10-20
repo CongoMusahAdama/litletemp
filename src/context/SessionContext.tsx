@@ -2,6 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from "react";
 import { ApiError, api, clearToken, getToken, PublicUser, CoupleInfo, setToken } from "@/lib/api";
+import { closeSocket } from "@/lib/socket";
+import { clearChatCache } from "@/lib/chatCache";
 import { useTheme } from "@/context/ThemeContext";
 
 type Session = {
@@ -54,6 +56,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     clearToken();
+    closeSocket();
+    clearChatCache();
     setUser(null);
     setPartner(null);
     setCouple(null);
@@ -68,6 +72,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           if (gone) return;
           if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
             clearToken();
+            closeSocket();
+            clearChatCache();
             setUser(null);
             setPartner(null);
             setCouple(null);
