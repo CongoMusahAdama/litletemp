@@ -5,7 +5,7 @@ const { requireAuth, requireCouple } = require('../middleware/auth');
 const { dayKey } = require('../lib/present');
 const { touchStreak } = require('../lib/couple');
 const { questionFor } = require('../lib/questions');
-const { deliver } = require('../lib/push');
+const { deliver, iconFor } = require('../lib/push');
 const { getIo } = require('../socket');
 
 const router = express.Router();
@@ -77,6 +77,7 @@ router.post('/', async (req, res, next) => {
         body: bothDone
           ? `${req.user.name} answered too. Open to see their answer.`
           : `${req.user.name} answered today's question. Answer to see what they said.`,
+        icon: iconFor(req.user),
       }).catch(() => undefined);
     }
 

@@ -18,12 +18,16 @@ async function vapidPublicKey() {
   return key.publicKey;
 }
 
+// The sender's profile picture for the notification. Uploads only load with a
+// signed link, so sign it; a plain /uploads path would be refused.
 function iconFor(person) {
   if (!person?.avatarUrl) return '';
   const path = String(person.avatarUrl);
   if (path.startsWith('http')) return path;
-  const base = process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_API_URL || '';
-  return base ? `${base}${path}` : '';
+  const base = (process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_API_URL || '').replace(/\/$/, '');
+  if (!base) return '';
+  const { publicMedia } = require('./present');
+  return `${base}${publicMedia(path)}`;
 }
 
 async function deliver(user, payload) {

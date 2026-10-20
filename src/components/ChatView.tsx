@@ -268,7 +268,7 @@ export default function ChatView({ onBack }: Props) {
             const person = partnerRef.current;
             const title = shownName(person, "Little Temptation");
             const body = data.type === "text" ? (data.text || "New message") : data.type === "image" ? "Sent a photo" : data.type === "video" ? "Sent a video" : "Sent a voice note";
-            const icon = person?.avatarUrl ? mediaUrl(person.avatarUrl) : "/icon.png";
+            const icon = person?.avatarUrl ? mediaUrl(person.avatarUrl) : "/app-icon-192.png";
             new Notification(title, { body: String(body).slice(0, 140), icon, silent: true });
           }
         }

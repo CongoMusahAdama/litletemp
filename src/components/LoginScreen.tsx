@@ -584,7 +584,7 @@ export default function LoginScreen({ onLogin }: Props) {
           <div className={styles.codeScreen}>
             <button className={styles.codeBack} onClick={handleBack}>Back</button>
             <div className={styles.codeBody}>
-              <img src="/icon.png" alt="" className={styles.codeMark} />
+              <img src="/app-icon-192.png" alt="" className={styles.codeMark} />
               <p className={styles.codeKicker}>For {partnerName}</p>
               <h1 className={styles.codeTitle}>Your pairing code</h1>
               <p className={styles.codeLead}>Send it only to {partnerName}. It closes in 7 days.</p>

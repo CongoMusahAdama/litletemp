@@ -1,7 +1,7 @@
 const express = require('express');
 const User = require('../models/User');
 const { requireAuth, requireCouple } = require('../middleware/auth');
-const { deliver } = require('../lib/push');
+const { deliver, iconFor } = require('../lib/push');
 const { getIo } = require('../socket');
 
 const router = express.Router();
@@ -35,6 +35,7 @@ router.post('/', async (req, res, next) => {
       kind: 'nudge',
       title: `${emoji} ${name} is thinking of you`,
       body: 'Tap to send one back',
+      icon: iconFor(req.user),
     }).catch(() => undefined);
 
     res.json({ ok: true });

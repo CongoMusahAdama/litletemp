@@ -9,8 +9,8 @@ self.addEventListener("push", (event) => {
       await Promise.all([
         self.registration.showNotification(data.title || "Little Temptation", {
           body: data.body || "New message",
-          icon: data.icon || "/icon.png",
-          badge: "/icon.png",
+          icon: data.icon || "/app-icon-192.png",
+          badge: "/app-icon-192.png",
           tag: quiet || nudge || data.kind === "daily" ? `lt-${data.kind}` : "lt-message",
           renotify: true,
           silent: quiet || nudge ? false : windows.length > 0,
