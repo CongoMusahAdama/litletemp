@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, useRef, useEffect, type ReactNode } from "react";
+import { Fragment, createContext, useContext, useState, useRef, useEffect, type ReactNode } from "react";
 import { scopedSocket, type ScopedSocket } from "@/lib/socket";
 import styles from "./ChatView.module.css";
 import { api, mediaUrl, shownName, uploadFile } from "@/lib/api";
@@ -71,6 +71,9 @@ function draftMessage(text: string, replyToId: string | undefined, senderId: str
 }
 
 type ChatPin = { id: string; preview: string; until: string };
+
+// Whether your partner has the app open, so ticks can show "delivered" (✓✓ grey).
+const PartnerOnlineContext = createContext(false);
 
 type MenuAnchor = { top: number; bottom: number; left: number; right: number };
 
@@ -880,6 +883,7 @@ export default function ChatView({ onBack }: Props) {
   };
 
   return (
+    <PartnerOnlineContext.Provider value={partnerOnline}>
     <div
       ref={rootRef}
       className={styles.chatView}
@@ -1804,6 +1808,7 @@ export default function ChatView({ onBack }: Props) {
         </div>
       </div>
     </div>
+    </PartnerOnlineContext.Provider>
   );
 }
 
@@ -1879,13 +1884,24 @@ function PendingClock() {
   );
 }
 
+// WhatsApp-style ticks: ✓ sent, ✓✓ grey delivered (partner has the app open), ✓✓ blue read.
 function DoubleCheck({ read, light }: { read?: boolean; light?: boolean }) {
-  const on = light ? "#fff" : "currentColor";
-  const off = light ? "rgba(255,255,255,0.75)" : "currentColor";
+  const delivered = useContext(PartnerOnlineContext);
+  const blue = light ? "#7DD3FC" : "#0A84FF";
+  const grey = light ? "rgba(255,255,255,0.9)" : "currentColor";
+  const color = read ? blue : grey;
+  const label = read ? "Read" : delivered ? "Delivered" : "Sent";
+  if (!read && !delivered) {
+    return (
+      <svg width="12" height="10" viewBox="0 0 12 10" fill="none" aria-label={label} style={{ flexShrink: 0, opacity: light ? 1 : 0.6 }}>
+        <path d="M1.5 5.2l3 3 6-7" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
   return (
-    <svg width="16" height="10" viewBox="0 0 16 10" fill="none" style={{ flexShrink: 0, opacity: read || light ? 1 : 0.45 }}>
-      <path d="M1 5l3 3 6-7" stroke={read ? on : off} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M5 5l3 3 6-7" stroke={read ? on : off} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="17" height="10" viewBox="0 0 17 10" fill="none" aria-label={label} style={{ flexShrink: 0, opacity: read || light ? 1 : 0.6 }}>
+      <path d="M1 5.2l3 3 6-7" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5.5 5.2l3 3 6-7" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
