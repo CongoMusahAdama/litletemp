@@ -3,16 +3,14 @@ const { bareUpload, publicMedia } = require('./present');
 const GameCard = require('../models/GameCard');
 const GameState = require('../models/GameState');
 
-const sessions = new Map();
-
+// Game state lives only in the database: on Vercel each request may land on a
+// different server, so an in-memory copy could go stale between the two phones.
 async function persist(coupleId, state) {
   const key = String(coupleId);
   if (!state) {
-    sessions.delete(key);
     await GameState.deleteOne({ coupleId: key });
     return;
   }
-  sessions.set(key, state);
   await GameState.findOneAndUpdate(
     { coupleId: key },
     { state },
@@ -94,12 +92,8 @@ async function startGame(coupleId, kind, userId) {
 }
 
 async function currentGame(coupleId) {
-  const key = String(coupleId);
-  if (sessions.has(key)) return sessions.get(key);
-  const saved = await GameState.findOne({ coupleId: key });
-  if (!saved?.state) return null;
-  sessions.set(key, saved.state);
-  return saved.state;
+  const saved = await GameState.findOne({ coupleId: String(coupleId) }).lean();
+  return saved?.state || null;
 }
 
 async function clearGame(coupleId) {

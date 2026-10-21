@@ -2,11 +2,43 @@ const express = require('express');
 const GameCard = require('../models/GameCard');
 const { requireAuth, requireCouple } = require('../middleware/auth');
 const { KINDS } = require('../lib/gameDecks');
+const { startGame, currentGame, clearGame, moveGame, viewGame, touchPlayer } = require('../lib/games');
+const { getIo } = require('../socket');
 
 const router = express.Router();
 router.use(requireAuth, requireCouple);
 
 const MAX_CARDS = 100;
+
+// Play a game: start, move, leave, or sync (join the current round).
+// Both phones then get their own view through the live channel.
+router.post('/play', async (req, res, next) => {
+  try {
+    const coupleId = req.couple._id;
+    const userId = req.user._id;
+    const action = String(req.body.action || '');
+    if (action === 'start') await startGame(coupleId, req.body.value, userId);
+    else if (action === 'move') await moveGame(coupleId, userId, req.body.value || {});
+    else if (action === 'leave') await clearGame(coupleId);
+    else if (action === 'sync') {
+      const existing = await currentGame(coupleId);
+      if (existing) {
+        touchPlayer(existing, userId);
+        await moveGame(coupleId, userId, {});
+      }
+    } else {
+      return res.status(400).json({ error: 'Unknown game action' });
+    }
+    const state = await currentGame(coupleId);
+    const io = getIo();
+    [req.couple.partner1, req.couple.partner2].filter(Boolean).forEach((id) => {
+      io.to(`user:${id}`).emit('game:state', state ? viewGame(state, id) : null);
+    });
+    res.json(state ? viewGame(state, userId) : null);
+  } catch (error) {
+    next(error);
+  }
+});
 
 function present(card, viewerId) {
   return {

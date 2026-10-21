@@ -1,4 +1,8 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3005";
+// The API runs on the same Vercel domain as the app (src/pages/api), so requests
+// are same-origin by default. NEXT_PUBLIC_API_URL can point at another server for
+// local work; an old Render address is ignored so nothing talks to Render again.
+const configuredApi = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+export const API_URL = configuredApi.includes("onrender.com") ? "" : configuredApi;
 
 export type PublicUser = {
   id: string;
@@ -80,10 +84,25 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   return data as T;
 }
 
-export function uploadFile(file: File) {
-  const body = new FormData();
-  body.append("file", file);
-  return api<{ url: string }>("/api/uploads", { method: "POST", body });
+// Files go straight from the phone to Vercel Blob (no 4.5MB request limit).
+// If Blob isn't set up (e.g. local development), small files use the old route.
+export async function uploadFile(file: File): Promise<{ url: string }> {
+  try {
+    const { upload } = await import("@vercel/blob/client");
+    const name = (file.name || "file").replace(/[^a-zA-Z0-9._-]/g, "_").slice(-60);
+    const blob = await upload(`uploads/${name}`, file, {
+      access: "public",
+      handleUploadUrl: `${API_URL}/api/uploads/blob`,
+      clientPayload: getToken(),
+      contentType: file.type || undefined,
+    });
+    return { url: blob.url };
+  } catch (error) {
+    if (file.size > 4 * 1024 * 1024) throw error;
+    const body = new FormData();
+    body.append("file", file);
+    return api<{ url: string }>("/api/uploads", { method: "POST", body });
+  }
 }
 
 export function shownName(person?: { name?: string; username?: string } | null, fallback = "") {

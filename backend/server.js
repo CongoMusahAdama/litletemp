@@ -1,8 +1,11 @@
+// Run the API on its own (local development). In production the same app runs
+// inside the Next.js project on Vercel (src/pages/api/[...path].js), and live
+// updates go through Ably instead of a socket server.
 require('dotenv').config();
 const http = require('http');
-const mongoose = require('mongoose');
 const { createApp } = require('./app');
-const { initSocket, getIo } = require('./socket');
+const { getIo } = require('./socket');
+const { connectDb } = require('./lib/db');
 const { settleDueBets } = require('./lib/bets');
 const { sendMorningNotes, sendAwayNotes } = require('./lib/morning');
 const { log } = require('./lib/log');
@@ -18,23 +21,16 @@ if (!process.env.MONGO_URI) {
 
 const app = createApp();
 const server = http.createServer(app);
-initSocket(server);
 
-mongoose.connect(process.env.MONGO_URI)
-  .then(async () => {
-    const users = mongoose.connection.collection('users');
-    const indexes = await users.indexes();
-    if (indexes.some((index) => index.name === 'email_1')) {
-      await users.dropIndex('email_1');
-    }
+connectDb()
+  .then(() => {
     log('info', 'Connected to MongoDB');
-    sendMorningNotes().catch((error) => log('error', 'morning notes failed', { stack: error.stack }));
-    sendAwayNotes().catch((error) => log('error', 'away notes failed', { stack: error.stack }));
-    setInterval(() => {
+    const daily = () => {
       sendMorningNotes().catch((error) => log('error', 'morning notes failed', { stack: error.stack }));
       sendAwayNotes().catch((error) => log('error', 'away notes failed', { stack: error.stack }));
-    }, 15 * 60 * 1000);
-    // Settle match bets shortly after full time.
+    };
+    daily();
+    setInterval(daily, 15 * 60 * 1000);
     setInterval(() => {
       settleDueBets(getIo()).catch((error) => log('error', 'bet settle failed', { stack: error.stack }));
     }, 5 * 60 * 1000);

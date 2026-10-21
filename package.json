@@ -10,11 +10,20 @@
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "0.10.14",
+    "@vercel/blob": "2.8.2",
+    "@vercel/functions": "3.10.2",
+    "ably": "2.29.0",
+    "bcryptjs": "3.0.3",
+    "cors": "2.8.6",
+    "express": "5.2.1",
+    "jsonwebtoken": "9.0.3",
+    "mongoose": "9.11.1",
+    "multer": "2.4.0",
     "next": "16.3.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "socket.io-client": "^4.8.4",
-    "sweetalert2": "^11.26.25"
+    "sweetalert2": "^11.26.25",
+    "web-push": "3.6.7"
   },
   "devDependencies": {
     "@types/node": "^20",

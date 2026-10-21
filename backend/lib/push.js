@@ -1,5 +1,6 @@
 const webpush = require('web-push');
 const mongoose = require('mongoose');
+const { background } = require('./background');
 
 const keySchema = new mongoose.Schema({
   publicKey: { type: String, required: true },
@@ -24,13 +25,26 @@ function iconFor(person) {
   if (!person?.avatarUrl) return '';
   const path = String(person.avatarUrl);
   if (path.startsWith('http')) return path;
-  const base = (process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_API_URL || '').replace(/\/$/, '');
+  const base = publicBase();
   if (!base) return '';
   const { publicMedia } = require('./present');
   return `${base}${publicMedia(path)}`;
 }
 
-async function deliver(user, payload) {
+// The app's own address: PUBLIC_URL if set, else the Vercel production domain.
+function publicBase() {
+  const explicit = process.env.PUBLIC_URL || process.env.PUBLIC_API_URL;
+  if (explicit) return explicit.replace(/\/$/, '');
+  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  return vercel ? `https://${vercel}` : '';
+}
+
+// Notifications keep sending after the response is out (see lib/background.js).
+function deliver(user, payload) {
+  return background(sendTo(user, payload));
+}
+
+async function sendTo(user, payload) {
   if (!user || user.notifications === false || !user.pushSubscriptions?.length) return;
   await vapidPublicKey();
   const body = JSON.stringify(payload);

@@ -1,6 +1,7 @@
 const Message = require('../models/Message');
 const { presentMessage, bareUpload } = require('./present');
 const { touchStreak } = require('./couple');
+const { background } = require('./background');
 
 async function saveMessage(user, couple, body) {
   const type = ['text', 'voice', 'image', 'video', 'sticker'].includes(body.type) ? body.type : 'text';
@@ -39,7 +40,7 @@ async function saveMessage(user, couple, body) {
     io.to(`couple:${couple._id}`).emit('streak:updated', { streak });
   }
   const { notifyPartner } = require('./push');
-  notifyPartner(user, couple, message).catch(() => undefined);
+  background(notifyPartner(user, couple, message));
   return message;
 }
 

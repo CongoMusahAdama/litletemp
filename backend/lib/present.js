@@ -30,13 +30,25 @@ function signUpload(filename, now = Date.now()) {
   return `/uploads/${encodeURIComponent(filename)}?exp=${exp}&sig=${sig}`;
 }
 
+// New uploads live in Vercel Blob; their links are long random URLs on this host.
+const BLOB_URL = /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\/[^?#\s]+$/i;
+
+function blobUrl(url) {
+  const value = String(url || '').split('?')[0].split('#')[0];
+  return BLOB_URL.test(value) ? value : '';
+}
+
 function bareUpload(url) {
+  const blob = blobUrl(url);
+  if (blob) return blob;
   const filename = uploadFilename(url);
   if (!filename) return '';
   return `/uploads/${filename}`;
 }
 
 function publicMedia(url, now = Date.now()) {
+  const blob = blobUrl(url);
+  if (blob) return blob;
   const filename = uploadFilename(url);
   if (!filename) return String(url || '');
   if (!process.env.JWT_SECRET) return `/uploads/${encodeURIComponent(filename)}`;

@@ -19,9 +19,12 @@ const gameRoutes = require('./routes/games');
 const snapRoutes = require('./routes/snaps');
 const footballRoutes = require('./routes/football');
 const stickerRoutes = require('./routes/stickers');
+const realtimeRoutes = require('./routes/realtime');
+const cronRoutes = require('./routes/cron');
 const Upload = require('./models/Upload');
 const { verifyUpload } = require('./lib/present');
 const { log } = require('./lib/log');
+const { connectDb } = require('./lib/db');
 
 function createApp() {
   const clientOrigin = process.env.CLIENT_ORIGIN || '*';
@@ -36,8 +39,17 @@ function createApp() {
     res.set('Cache-Control', 'no-store');
     next();
   });
+  // Start connecting to MongoDB on the first request (serverless has no start-up
+  // step). Mongoose queues queries until the connection is ready, so routes that
+  // don't touch the database never wait for it.
+  app.use((_req, _res, next) => {
+    connectDb().catch((error) => log('error', 'MongoDB connection error', { stack: error.stack }));
+    next();
+  });
 
-  app.get('/uploads/:filename', async (req, res) => {
+  // Photos saved before the move to Vercel Blob. On Vercel, /uploads/* is rewritten
+  // to /api/legacy-uploads/* (see next.config.ts) so it reaches this function.
+  app.get(['/uploads/:filename', '/api/legacy-uploads/:filename'], async (req, res) => {
     try {
       const filename = decodeURIComponent(req.params.filename);
       if (!verifyUpload(filename, req.query.exp, req.query.sig)) {
@@ -48,6 +60,7 @@ function createApp() {
       res.set('Content-Type', doc.contentType);
       // A filename's bytes never change, so the phone can keep it.
       res.set('Cache-Control', 'private, max-age=604800, immutable');
+      res.removeHeader('Expires');
       res.set('Cross-Origin-Resource-Policy', 'cross-origin');
       res.set('X-Content-Type-Options', 'nosniff');
       res.send(doc.data);
@@ -78,6 +91,8 @@ function createApp() {
   app.use('/api/snaps', snapRoutes);
   app.use('/api/football', footballRoutes);
   app.use('/api/stickers', stickerRoutes);
+  app.use('/api/realtime', realtimeRoutes);
+  app.use('/api/cron', cronRoutes);
 
   app.use((error, req, res, _next) => {
     log('error', error.message || 'request failed', {

@@ -62,8 +62,10 @@ router.post('/', async (req, res, next) => {
 
     const io = getIo();
     if (io) {
-      const sockets = await io.in(`couple:${req.couple._id}`).fetchSockets();
-      sockets.forEach((peer) => peer.emit('daily:updated', presentDay(day, question, answers, peer.user._id)));
+      // Each person gets their own view (their partner's answer stays hidden until they answer).
+      [req.couple.partner1, req.couple.partner2].filter(Boolean).forEach((id) => {
+        io.to(`user:${id}`).emit('daily:updated', presentDay(day, question, answers, id));
+      });
       io.to(`couple:${req.couple._id}`).emit('streak:updated', { streak });
     }
 

@@ -16,6 +16,9 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@vercel/blob": "2.8.2",
+    "@vercel/functions": "3.10.2",
+    "ably": "2.29.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^18.0.6",
@@ -23,7 +26,6 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.11.1",
     "multer": "^2.4.0",
-    "socket.io": "^4.8.4",
     "web-push": "^3.6.7"
   }
 }

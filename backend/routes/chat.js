@@ -73,7 +73,7 @@ router.get('/summary', async (req, res, next) => {
       lastMessage: last ? presentMessage(last) : null,
       unread,
       streak: streakView(req.couple, req.user._id).streak,
-      partnerOnline: partner ? isOnline(partner._id) : false,
+      partnerOnline: partner ? await isOnline(partner._id, req.couple._id) : false,
     });
   } catch (error) {
     next(error);

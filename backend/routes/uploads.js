@@ -69,8 +69,43 @@ router.post('/', rateLimit({ windowMs: 15 * 60 * 1000, max: 40 }), requireAuth, 
 
 router.post('/link', requireAuth, (req, res) => {
   const url = publicMedia(req.body?.url || '');
-  if (!url.startsWith('/uploads/')) return res.status(404).json({ error: 'Photo not found' });
+  if (!url.startsWith('/uploads/') && !url.startsWith('https://')) return res.status(404).json({ error: 'Photo not found' });
   res.json({ url });
+});
+
+// Direct-to-storage uploads (Vercel Blob). Vercel caps a request at 4.5MB, so the
+// phone sends the file straight to Blob; this endpoint only checks who is asking
+// and hands out a one-time upload token.
+const BLOB_TYPES = Object.values(MIME_MAP).concat(['video/x-m4v', 'audio/webm', 'audio/x-m4a', 'audio/aac']);
+const BLOB_MAX_BYTES = 60 * 1024 * 1024;
+
+router.post('/blob', async (req, res) => {
+  try {
+    const { handleUpload } = require('@vercel/blob/client');
+    const jwt = require('jsonwebtoken');
+    const User = require('../models/User');
+    const { getSecret } = require('../middleware/auth');
+    const result = await handleUpload({
+      body: req.body,
+      request: { headers: new Headers(Object.entries(req.headers).map(([key, value]) => [key, String(value)])) },
+      onBeforeGenerateToken: async (_pathname, clientPayload) => {
+        // The app passes its sign-in token as the payload.
+        const payload = jwt.verify(String(clientPayload || ''), getSecret());
+        const user = await User.findById(payload.userId);
+        if (!user || (payload.v || 0) !== (user.tokenVersion || 0)) throw new Error('Sign in required');
+        return {
+          allowedContentTypes: BLOB_TYPES,
+          maximumSizeInBytes: BLOB_MAX_BYTES,
+          addRandomSuffix: true,
+          tokenPayload: String(user._id),
+        };
+      },
+      onUploadCompleted: async () => undefined,
+    });
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ error: error.message || 'Upload failed' });
+  }
 });
 
 module.exports = router;
