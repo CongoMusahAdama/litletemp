@@ -1,116 +1,128 @@
 .container {
   position: absolute;
   bottom: calc(12px + env(safe-area-inset-bottom));
-  left: 16px;
-  right: 16px;
+  left: 14px;
+  right: 14px;
   z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   animation: slideUp 0.4s ease forwards;
 }
 
+/* Soft light-grey pill, like frosted glass */
 .navBar {
+  flex: 1;
+  min-width: 0;
+  height: 64px;
+  padding: 6px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  background: var(--brand); /* Brand Yellow */
+  gap: 4px;
   border-radius: 100px;
-  height: 66px;
-  padding: 0 8px;
-  position: relative;
-  box-shadow: 0 12px 32px rgba(255, 64, 129, 0.25);
+  background: linear-gradient(180deg, rgba(246, 246, 248, 0.94), rgba(234, 234, 238, 0.94));
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.1),
+    0 2px 6px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .item {
   flex: 1;
+  min-width: 0;
+  height: 100%;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
-  position: relative;
-  transition: transform 0.2s ease;
-  color: rgba(26,26,26,0.5); /* Semi-transparent black for inactive */
+  gap: 8px;
+  border: 0;
+  border-radius: 100px;
+  background: transparent;
+  color: #8a8a93;
+  font-family: "Sora", sans-serif;
+  cursor: pointer;
+  transition: flex 0.3s cubic-bezier(0.22, 1, 0.36, 1), background 0.25s ease, color 0.2s ease, box-shadow 0.25s ease;
 }
-.item:active { transform: scale(0.9); }
+.item:active { transform: scale(0.95); }
+
+/* The open tab: a raised white bubble with its name */
+.active {
+  flex: 1.9;
+  color: #111;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+}
 
 .iconWrap {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 32px;
+  flex-shrink: 0;
+}
+.iconWrap svg { width: 23px; height: 23px; }
+
+.label {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: labelIn 0.25s ease;
 }
 
-.iconWrap svg {
-  width: 22px;
-  height: 22px;
-  transition: color 0.2s ease;
-}
-
-/* Active indicator dash */
-.activeIndicator {
-  position: absolute;
-  bottom: 12px;
-  width: 14px;
-  height: 2.5px;
-  border-radius: 4px;
-  background: #1a1a1a; /* Black dash */
-  animation: scaleIn 0.2s ease forwards;
-}
-
-.active {
-  color: #1a1a1a;
+@keyframes labelIn {
+  from { opacity: 0; transform: translateX(-4px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
 .badge {
   position: absolute;
   top: -2px;
-  right: -4px;
+  right: -3px;
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #E8003D; /* Keep badge red or maybe black */
+  background: #FF4081;
+  border: 1.5px solid #f2f2f4;
 }
 
-/* Central raised button */
-.centerWrap {
-  position: relative;
-  width: 72px;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-}
-
-.centerCutout {
-  position: absolute;
-  top: -20px;
-  width: 68px;
-  height: 68px;
-  background: var(--brand); /* Brand Yellow */
+/* The round + button, in our primary pink */
+.fab {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border: 0;
   border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ff79a6 0%, #FF4081 55%, #E91E63 100%);
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
+  box-shadow:
+    0 10px 24px rgba(255, 64, 129, 0.45),
+    0 0 0 6px rgba(255, 64, 129, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
 }
+.fab:active { transform: scale(0.92); }
+.fab svg { width: 26px; height: 26px; }
 
-.centerBtn {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: #1a1a1a; /* Black center button */
-  color: #ffffff; /* White icon */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.2s ease, filter 0.2s ease;
-  box-shadow: 0 4px 12px rgba(255, 77, 117, 0.3);
+/* Dark mode: same shape, dark glass */
+:global([data-theme="dark"]) .navBar {
+  background: linear-gradient(180deg, rgba(38, 38, 42, 0.94), rgba(28, 28, 31, 0.94));
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
-
-.centerBtn:active {
-  transform: scale(0.92);
-  filter: brightness(0.9);
+:global([data-theme="dark"]) .item { color: #8e8e96; }
+:global([data-theme="dark"]) .active {
+  color: #fff;
+  background: #3a3a40;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
-
-.centerBtn svg {
-  width: 24px;
-  height: 24px;
-}
+:global([data-theme="dark"]) .badge { border-color: #26262a; }
