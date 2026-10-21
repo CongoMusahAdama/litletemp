@@ -361,6 +361,8 @@ export default function ChatsTab({ onOpenChat }: Props) {
         document.body,
       )}
 
+      {/* Story screens render on <body> so the app frame and bottom menu can never cover them. */}
+      {(storyDraft || watching) && createPortal(<>
       {storyDraft && (
         <div className={styles.viewer}>
           <button type="button" className={styles.viewerClose} onClick={closeDraft} aria-label="Discard story">
@@ -456,7 +458,7 @@ export default function ChatsTab({ onOpenChat }: Props) {
           </div>
         </div>
       )}
+      </>, document.body)}
     </div>
   );
 }
-
