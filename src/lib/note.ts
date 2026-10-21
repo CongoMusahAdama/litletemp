@@ -46,14 +46,35 @@ export function playSendTick() {
   });
 }
 
+// A short, bright bell strike: a sharp attack and a quick natural fade, with the
+// slightly "glassy" overtones of a struck bar.
+function bell(context: AudioContext, frequency: number, start: number, duration: number, peak: number) {
+  [[1, 1], [2.0, 0.35], [3.01, 0.12], [4.2, 0.05]].forEach(([ratio, level]) => {
+    const osc = context.createOscillator();
+    const gain = context.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = frequency * ratio;
+    const amount = peak * level;
+    // Higher overtones die away faster, like a real bell.
+    const fade = duration / (1 + (ratio - 1) * 0.6);
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(Math.max(amount, 0.0002), start + 0.006);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + fade);
+    osc.connect(gain);
+    gain.connect(context.destination);
+    osc.start(start);
+    osc.stop(start + fade + 0.05);
+  });
+}
+
+// New message: a quick, bright two-note chime in the spirit of the iPhone "Note" text tone.
 export function playMessageNote() {
   const stamp = Date.now();
-  if (stamp - lastNote < 2000) return;
+  if (stamp - lastNote < 1500) return;
   lastNote = stamp;
   play((context) => {
     const now = context.currentTime;
-    voice(context, 523.25, now, 0.7, 0.1);
-    voice(context, 659.25, now + 0.18, 0.85, 0.09);
-    voice(context, 783.99, now + 0.36, 1.05, 0.08);
+    bell(context, 1046.5, now, 0.45, 0.16);
+    bell(context, 1567.98, now + 0.085, 0.6, 0.14);
   });
 }

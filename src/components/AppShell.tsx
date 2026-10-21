@@ -10,7 +10,7 @@ import MoreTab from "./tabs/MoreTab";
 import ChatView from "./ChatView";
 import styles from "./AppShell.module.css";
 import { useSession } from "@/context/SessionContext";
-import { PublicUser } from "@/lib/api";
+import { api, PublicUser } from "@/lib/api";
 import { applyBubble } from "@/lib/bubbles";
 import { playMessageNote } from "@/lib/note";
 import HomeBadge from "./HomeBadge";
@@ -29,6 +29,26 @@ export default function AppShell() {
   const [covered, setCovered] = useState(false);
   const [nudge, setNudge] = useState<{ name: string; emoji: string; at: number } | null>(null);
   const clearNudge = useCallback(() => setNudge(null), []);
+  // Unread messages for the number on the Chats tab.
+  const [unread, setUnread] = useState(0);
+  const loadUnread = useCallback(() => {
+    api<{ unread: number }>("/api/chat/summary").then((summary) => setUnread(summary.unread || 0)).catch(() => undefined);
+  }, []);
+
+  // Closing the chat (it marks messages read) or coming back to the app refreshes the count.
+  useEffect(() => {
+    if (!user?.id || chatOpen) return;
+    loadUnread();
+    const onVisible = () => { if (document.visibilityState === "visible") loadUnread(); };
+    document.addEventListener("visibilitychange", onVisible);
+    const socket = scopedSocket();
+    socket.on("message:new", loadUnread);
+    socket.on("messages:read", loadUnread);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      socket.disconnect();
+    };
+  }, [user?.id, chatOpen, loadUnread]);
 
   useEffect(() => {
     const saved = user?.bubbleColor || localStorage.getItem("lt_bubble") || "";
@@ -95,7 +115,7 @@ export default function AppShell() {
 
       {/* Bottom nav hidden inside full-screen chat */}
       {!chatOpen && (
-        <BottomNav active={activeTab} onChange={handleTabChange} />
+        <BottomNav active={activeTab} onChange={handleTabChange} unread={unread} />
       )}
       <HomeBadge />
       {couple?.status === "pending" && couple.gatePassword && !partner && <PairingBoard />}

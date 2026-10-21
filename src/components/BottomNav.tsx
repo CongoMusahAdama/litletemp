@@ -6,6 +6,8 @@ import styles from "./BottomNav.module.css";
 interface Props {
   active: Tab;
   onChange: (tab: Tab) => void;
+  /** Unread messages, shown as a number on the Chats tab. */
+  unread?: number;
 }
 
 interface NavTab {
@@ -62,7 +64,7 @@ const TABS: NavTab[] = [
   },
 ];
 
-export default function BottomNav({ active, onChange }: Props) {
+export default function BottomNav({ active, onChange, unread = 0 }: Props) {
   return (
     <div className={styles.container}>
       <nav className={styles.navBar} aria-label="Main">
@@ -74,12 +76,14 @@ export default function BottomNav({ active, onChange }: Props) {
               type="button"
               className={`${styles.item} ${isActive ? styles.active : ""}`}
               onClick={() => onChange(tab.id)}
-              aria-label={tab.label}
+              aria-label={tab.badge && unread > 0 ? `${tab.label}, ${unread} unread` : tab.label}
               aria-current={isActive ? "page" : undefined}
             >
               <span className={styles.iconWrap}>
                 {tab.icon}
-                {tab.badge && <span className={styles.badge} />}
+                {tab.badge && unread > 0 && (
+                  <span key={unread} className={styles.badge}>{unread > 99 ? "99+" : unread}</span>
+                )}
               </span>
               {isActive && <span className={styles.label}>{tab.label}</span>}
             </button>
