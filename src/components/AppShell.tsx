@@ -16,6 +16,7 @@ import { playMessageNote } from "@/lib/note";
 import HomeBadge from "./HomeBadge";
 import { MoodPopup, PairingBoard, PasswordSetup } from "./CoupleOverlays";
 import HeartBurst from "./HeartBurst";
+import WhatsNew from "./WhatsNew";
 
 export type Tab = "chats" | "journal" | "mood" | "more" | "action";
 
@@ -122,6 +123,7 @@ export default function AppShell() {
       {(couple?.status === "active" || partner) && user && !user.hasPassword && <PasswordSetup />}
       {couple?.status === "active" && user?.hasPassword && <MoodPopup />}
       {nudge && <HeartBurst key={nudge.at} name={nudge.name} emoji={nudge.emoji} onDone={clearNudge} />}
+      {user?.hasPassword && <WhatsNew />}
       {covered && <div className={styles.privacyCover}>Little Temptation</div>}
     </div>
   );

@@ -70,6 +70,11 @@ function createApp() {
     }
   });
 
+  // Which build is live, so open apps can offer "Update ready · Refresh".
+  app.get('/api/version', (_req, res) => {
+    res.json({ version: process.env.VERCEL_GIT_COMMIT_SHA || '' });
+  });
+
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true, db: mongoose.connection.readyState === 1 ? 'up' : 'down', pin: true });
   });
