@@ -5,6 +5,7 @@ import { scopedSocket } from "@/lib/socket";
 import styles from "./JournalTab.module.css";
 import VoicePlayer from "../VoicePlayer";
 import { api, mediaUrl, uploadFile } from "@/lib/api";
+import { useSession } from "@/context/SessionContext";
 
 interface Entry {
   id: string;
@@ -16,6 +17,7 @@ interface Entry {
   favorite?: boolean;
   image?: string;
   media?: { url: string; type: "image" | "video" | "audio" }[];
+  authorId?: string;
 }
 
 interface ServerEntry {
@@ -28,6 +30,7 @@ interface ServerEntry {
   favorite: boolean;
   image?: string;
   media?: { url: string; type: "image" | "video" | "audio" }[];
+  authorId?: string;
 }
 
 const filters = ["Recent", "Favorites", "Photos", "Voice", "Wishlist"];
@@ -63,7 +66,12 @@ function formatEntry(row: ServerEntry): Entry {
 export default function JournalTab({ triggerNewEntry }: Props) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [activeFilter, setActiveFilter] = useState("Recent");
+  const { user } = useSession();
   const [showNewEntry, setShowNewEntry] = useState(false);
+  // Set while the entry form is editing an existing entry instead of adding one.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newBody, setNewBody] = useState("");
   const [newMedia, setNewMedia] = useState<{ url: string; type: "image" | "video" | "audio" }[]>([]);
@@ -159,12 +167,64 @@ export default function JournalTab({ triggerNewEntry }: Props) {
     setNewMedia(prev => prev.filter((_, i) => i !== index));
   };
 
+  const closeEditor = () => {
+    setShowNewEntry(false);
+    if (editingId) {
+      // Leaving an edit shouldn't leave its text in the next "new entry".
+      setEditingId(null);
+      setNewTitle("");
+      setNewBody("");
+      setNewMedia([]);
+    }
+    setEntryError("");
+  };
+
+  const startEdit = (entry: Entry) => {
+    setEditingId(entry.id);
+    setNewTitle(entry.title);
+    setNewBody(entry.text || "");
+    setNewMedia(entry.media || []);
+    setEntryError("");
+    setOpenEntryId(null);
+    setShowNewEntry(true);
+  };
+
+  const deleteEntry = async (entry: Entry) => {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await api(`/api/journal/${entry.id}`, { method: "DELETE" });
+      setEntries((prev) => prev.filter((item) => item.id !== entry.id));
+      setOpenEntryId(null);
+    } catch {
+      // Leave it open; the confirm row stays so they can try again.
+    } finally {
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!newTitle.trim() || savingEntry || uploadingCount > 0) return;
     const firstMediaUrl = newMedia.length > 0 ? newMedia[0].url : undefined;
     setSavingEntry(true);
     setEntryError("");
     try {
+      if (editingId) {
+        const updated = await api<ServerEntry>(`/api/journal/${editingId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ title: newTitle, text: newBody, media: newMedia }),
+        });
+        const formatted = formatEntry(updated);
+        setEntries((prev) => prev.map((item) => item.id === formatted.id ? formatted : item));
+        setEditingId(null);
+        setNewTitle("");
+        setNewBody("");
+        setNewMedia([]);
+        setShowNewEntry(false);
+        setOpenEntryId(formatted.id);
+        return;
+      }
       const saved = await api<ServerEntry>("/api/journal", {
         method: "POST",
         body: JSON.stringify({
@@ -331,11 +391,11 @@ export default function JournalTab({ triggerNewEntry }: Props) {
 
       {/* New Entry Modal */}
       {showNewEntry && (
-        <div className={styles.modalOverlay} onClick={() => setShowNewEntry(false)}>
+        <div className={styles.modalOverlay} onClick={closeEditor}>
           <div className={styles.modal} onClick={e => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <h2 className={styles.modalTitle}>New Entry</h2>
-              <button className={styles.modalClose} onClick={() => setShowNewEntry(false)}>
+              <h2 className={styles.modalTitle}>{editingId ? "Edit Entry" : "New Entry"}</h2>
+              <button className={styles.modalClose} onClick={closeEditor} aria-label="Close">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
@@ -428,7 +488,7 @@ export default function JournalTab({ triggerNewEntry }: Props) {
             >
               {savingEntry ? (
                 <><span className={styles.spinnerDark} aria-hidden="true" /> Saving…</>
-              ) : uploadingCount > 0 ? "Waiting for uploads…" : "Save Entry"}
+              ) : uploadingCount > 0 ? "Waiting for uploads…" : editingId ? "Save changes" : "Save Entry"}
             </button>
           </div>
         </div>
@@ -436,7 +496,7 @@ export default function JournalTab({ triggerNewEntry }: Props) {
 
       {/* Journal Entry Detail */}
       {openEntry && (
-        <div className={styles.modalOverlay} onClick={() => setOpenEntryId(null)}>
+        <div className={styles.modalOverlay} onClick={() => { setOpenEntryId(null); setConfirmDelete(false); }}>
           <div className={`${styles.modal} ${styles.detailModal}`} onClick={e => e.stopPropagation()}>
             <div className={styles.modalHeader}>
               <span className={styles.detailDate}>{openEntry.date}</span>
@@ -444,7 +504,7 @@ export default function JournalTab({ triggerNewEntry }: Props) {
                 <button type="button" className={styles.detailHeart} onClick={() => void toggleFavorite(openEntry)} aria-label="Save memory">
                   {openEntry.favorite ? "♥" : "♡"}
                 </button>
-                <button className={styles.modalClose} onClick={() => setOpenEntryId(null)} aria-label="Close">
+                <button className={styles.modalClose} onClick={() => { setOpenEntryId(null); setConfirmDelete(false); }} aria-label="Close">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
@@ -463,6 +523,32 @@ export default function JournalTab({ triggerNewEntry }: Props) {
                   : <VoicePlayer key={idx} src={m.url} />
                 ))}
               </div>
+            )}
+
+            {/* Edit / delete: only on entries you wrote */}
+            {String(openEntry.authorId) === String(user?.id) && (
+              confirmDelete ? (
+                <div className={styles.confirmRow}>
+                  <p>Delete this entry for both of you? This can&apos;t be undone.</p>
+                  <div>
+                    <button type="button" className={styles.confirmCancel} onClick={() => setConfirmDelete(false)} disabled={deleting}>Keep it</button>
+                    <button type="button" className={styles.confirmDelete} onClick={() => void deleteEntry(openEntry)} disabled={deleting}>
+                      {deleting ? <span className={styles.spinnerLight} aria-hidden="true" /> : "Delete"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.entryActions}>
+                  <button type="button" className={styles.entryEdit} onClick={() => startEdit(openEntry)}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>
+                    Edit
+                  </button>
+                  <button type="button" className={styles.entryDelete} onClick={() => setConfirmDelete(true)}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
+                    Delete
+                  </button>
+                </div>
+              )
             )}
           </div>
         </div>

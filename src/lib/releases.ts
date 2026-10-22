@@ -5,6 +5,16 @@ export type Release = { id: string; date: string; title: string; items: ReleaseI
 
 export const RELEASES: Release[] = [
   {
+    id: "2026-10-22.2",
+    date: "22 October 2026",
+    title: "Little fixes, just for you",
+    items: [
+      { icon: "✏️", title: "Edit your journal", text: "Open an entry you wrote to change its title, words or photos." },
+      { icon: "🗑️", title: "Delete an entry", text: "Remove an entry you wrote. You'll be asked to confirm first." },
+      { icon: "🟢", title: "Clearer status", text: "The chat now simply shows Online or Offline." },
+    ],
+  },
+  {
     id: "2026-10-22",
     date: "22 October 2026",
     title: "A big update for you two",

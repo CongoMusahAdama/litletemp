@@ -143,7 +143,6 @@ export default function ChatView({ onBack }: Props) {
   const partnerRef = useRef(partner);
   partnerRef.current = partner;
   const [messages, setMessages] = useState<Message[]>(() => readChatCache<Message>(user?.id).filter((item) => !item.pending && !item.failed));
-  const [connected, setConnected] = useState(false);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
@@ -259,8 +258,6 @@ export default function ChatView({ onBack }: Props) {
     const socket = scopedSocket();
     socketRef.current = socket;
     setSocket(socket);
-    socket.on("connect", () => setConnected(true));
-    socket.on("disconnect", () => setConnected(false));
     socket.on("message:new", (data: ServerMessage) => {
       setMessages((prev) => {
         if (prev.some((item) => item.id === String(data.id))) return prev;
@@ -1048,7 +1045,7 @@ export default function ChatView({ onBack }: Props) {
             </button>
           </div>
           <p className={styles.chatStatus} style={{ color: partnerOnline ? '#22c55e' : '#ef4444' }}>
-            {!connected ? "Connecting…" : partnerOnline ? "Online" : couple?.status === "pending" ? "Waiting to join" : "Offline"}
+            {partnerOnline ? "Online" : couple?.status === "pending" ? "Waiting to join" : "Offline"}
           </p>
         </div>
 

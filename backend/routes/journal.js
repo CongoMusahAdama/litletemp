@@ -26,7 +26,7 @@ function present(entry) {
     date: new Date(entry.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     createdAt: entry.createdAt,
   };
-}
+} 
 
 router.get('/', async (req, res, next) => {
   try {
@@ -81,8 +81,27 @@ router.patch('/:id', async (req, res, next) => {
   try {
     const entry = await JournalEntry.findOne({ _id: req.params.id, coupleId: req.couple._id });
     if (!entry) return res.status(404).json({ error: 'Entry not found' });
-    if (req.body.title !== undefined) entry.title = String(req.body.title).trim().slice(0, 120);
+    // Either of you can favourite an entry; only its author can change what it says.
+    const editing = req.body.title !== undefined || req.body.text !== undefined || req.body.media !== undefined;
+    if (editing && String(entry.authorId) !== String(req.user._id)) {
+      return res.status(403).json({ error: 'Only the person who wrote this can edit it' });
+    }
+    if (req.body.title !== undefined) {
+      const title = String(req.body.title).trim().slice(0, 120);
+      if (!title) return res.status(400).json({ error: 'A title is required' });
+      entry.title = title;
+    }
     if (req.body.text !== undefined) entry.text = String(req.body.text).slice(0, 8000);
+    if (Array.isArray(req.body.media)) {
+      entry.media = req.body.media.slice(0, 8).map((item) => ({
+        url: bareUpload(item?.url),
+        type: ['image', 'video', 'audio'].includes(item?.type) ? item.type : 'image',
+      })).filter((item) => item.url);
+      // Keep the card colour in step with whether it now has a picture.
+      const hasImage = entry.media.some((item) => item.type === 'image');
+      entry.color = hasImage ? '#1a1a1a' : '#FF4081';
+      entry.textColor = hasImage ? '#ffffff' : '#1a1a1a';
+    }
     if (typeof req.body.favorite === 'boolean') entry.favorite = req.body.favorite;
     await entry.save();
     const payload = present(entry);
@@ -96,8 +115,12 @@ router.patch('/:id', async (req, res, next) => {
 
 router.delete('/:id', async (req, res, next) => {
   try {
-    const entry = await JournalEntry.findOneAndDelete({ _id: req.params.id, coupleId: req.couple._id });
+    const entry = await JournalEntry.findOne({ _id: req.params.id, coupleId: req.couple._id });
     if (!entry) return res.status(404).json({ error: 'Entry not found' });
+    if (String(entry.authorId) !== String(req.user._id)) {
+      return res.status(403).json({ error: 'Only the person who wrote this can delete it' });
+    }
+    await entry.deleteOne();
     const io = getIo();
     if (io) io.to(`couple:${req.couple._id}`).emit('journal:deleted', { id: req.params.id });
     res.json({ ok: true });
