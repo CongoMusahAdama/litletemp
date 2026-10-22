@@ -1,7 +1,8 @@
 self.addEventListener("push", (event) => {
   const data = event.data ? event.data.json() : { unread: 1, title: "Little Temptation", body: "New message" };
   const unread = Number(data.unread) || 0;
-  const quiet = data.kind === "morning" || data.kind === "away";
+  // Not chat messages: their own tag, a normal alert sound, no message chime or badge.
+  const quiet = data.kind === "morning" || data.kind === "away" || data.kind === "recap";
   const nudge = data.kind === "nudge";
   event.waitUntil((async () => {
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
