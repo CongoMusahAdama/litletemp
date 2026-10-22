@@ -5,6 +5,17 @@ export type Release = { id: string; date: string; title: string; items: ReleaseI
 
 export const RELEASES: Release[] = [
   {
+    id: "2026-10-22.3",
+    date: "22 October 2026",
+    title: "Evening check-in 🌙",
+    items: [
+      { icon: "🌙", title: "How was your day?", text: "Every evening, pick how your day felt and tell each other about it." },
+      { icon: "🔒", title: "Share to read", text: "Your partner's day unlocks once you've shared yours." },
+      { icon: "🔥", title: "Keeps your streak", text: "Sharing your day counts towards your streak. You'll get a gentle reminder each evening." },
+      { icon: "📖", title: "Past days", text: "Look back on the days you both shared." },
+    ],
+  },
+  {
     id: "2026-10-22.2",
     date: "22 October 2026",
     title: "Little fixes, just for you",

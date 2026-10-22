@@ -7,6 +7,8 @@ import { api, mediaUrl, shownName, uploadFile } from "@/lib/api";
 import { useSession } from "@/context/SessionContext";
 import { useDaily } from "@/hooks/useDaily";
 import DailyQuestion from "../DailyQuestion";
+import DayRecap from "../DayRecap";
+import { useRecap } from "@/hooks/useRecap";
 import OnThisDay from "../OnThisDay";
 import { sendNudge } from "../HeartBurst";
 import { clockTime, dayLabel, listTime } from "@/lib/chatDates";
@@ -67,6 +69,8 @@ export default function ChatsTab({ onOpenChat }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const { daily, answer } = useDaily();
   const [showDaily, setShowDaily] = useState(false);
+  const { recap, evening, share: shareDay } = useRecap();
+  const [showRecap, setShowRecap] = useState(false);
   const [nudgeNote, setNudgeNote] = useState("");
   const [nudging, setNudging] = useState(false);
   const [matchDay, setMatchDay] = useState<MatchDay | null>(null);
@@ -310,6 +314,24 @@ export default function ChatsTab({ onOpenChat }: Props) {
       </div>
 
       <div className={styles.extras}>
+        <button
+          type="button"
+          className={`${styles.recapCard} ${evening && recap && !recap.mine ? styles.recapCalling : ""}`}
+          onClick={() => setShowRecap(true)}
+        >
+          <span className={styles.recapMoon} aria-hidden="true">🌙</span>
+          <span className={styles.recapCopy}>
+            <em>Evening check-in</em>
+            <strong>{recap?.mine ? "Your day is shared" : evening ? "How was your day?" : "Tonight: how was your day?"}</strong>
+            <small>
+              {!recap ? "Tell each other about today"
+                : !recap.mine ? (recap.theyShared ? `🔒 ${partnerName} shared. Your turn` : `Tell ${partnerName} about today`)
+                : recap.theirs ? `${partnerName} shared too. Tap to read 💞` : `Waiting for ${partnerName}…`}
+            </small>
+          </span>
+          <span className={styles.recapGo}>{recap?.mine ? "Open" : "Share"}</span>
+        </button>
+
         <button type="button" className={`${styles.nudgeCard} ${nudging ? styles.nudgeSending : ""}`} onClick={() => void nudge()}>
           <span className={styles.nudgeHeart}>💗</span>
           <span className={styles.nudgeCopy}>
@@ -352,6 +374,10 @@ export default function ChatsTab({ onOpenChat }: Props) {
 
       {showDaily && (
         <DailyQuestion daily={daily} partnerName={partnerName} onAnswer={answer} onClose={() => setShowDaily(false)} />
+      )}
+
+      {showRecap && (
+        <DayRecap recap={recap} partnerName={partnerName} onShare={shareDay} onClose={() => setShowRecap(false)} />
       )}
 
       {showFootball && createPortal(

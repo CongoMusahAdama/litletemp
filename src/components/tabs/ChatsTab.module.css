@@ -614,3 +614,47 @@
   z-index: 2500;
   background: var(--bg-app);
 }
+
+/* ── Evening check-in card ── */
+.recapCard {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  border: 0;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 88% 0%, rgba(255, 64, 129, 0.4), transparent 50%),
+    linear-gradient(140deg, #1e1b4b 0%, #312e81 60%, #4c1d95 100%);
+  color: #fff;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 12px 26px rgba(49, 46, 129, 0.3);
+  transition: transform 0.15s ease;
+}
+.recapCard:active { transform: scale(0.98); }
+.recapCalling { animation: recapPulse 2.6s ease-in-out infinite; }
+@keyframes recapPulse {
+  50% { box-shadow: 0 12px 30px rgba(124, 58, 237, 0.55), 0 0 0 4px rgba(167, 139, 250, 0.25); }
+}
+.recapMoon { font-size: 34px; line-height: 1; filter: drop-shadow(0 0 12px rgba(253, 224, 71, 0.5)); }
+.recapCopy { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.recapCopy em { font-style: normal; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #c4b5fd; }
+.recapCopy strong { font-size: 16px; font-weight: 800; }
+.recapCopy small { font-size: 13px; font-weight: 600; opacity: 0.85; }
+.recapGo {
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 100px;
+  background: #fff;
+  color: #312e81;
+  font-size: 13px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+}

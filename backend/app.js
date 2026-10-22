@@ -21,6 +21,7 @@ const footballRoutes = require('./routes/football');
 const stickerRoutes = require('./routes/stickers');
 const realtimeRoutes = require('./routes/realtime');
 const cronRoutes = require('./routes/cron');
+const recapRoutes = require('./routes/recap');
 const Upload = require('./models/Upload');
 const { verifyUpload } = require('./lib/present');
 const { log } = require('./lib/log');
@@ -98,6 +99,7 @@ function createApp() {
   app.use('/api/stickers', stickerRoutes);
   app.use('/api/realtime', realtimeRoutes);
   app.use('/api/cron', cronRoutes);
+  app.use('/api/recap', recapRoutes);
 
   app.use((error, req, res, _next) => {
     log('error', error.message || 'request failed', {

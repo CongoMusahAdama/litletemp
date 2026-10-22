@@ -1937,3 +1937,12 @@
 }
 .holdMic svg { width: 26px; height: 26px; }
 @keyframes holdPulse { 50% { box-shadow: 0 0 0 14px rgba(255, 64, 129, 0.08); } }
+
+.recapBanner {
+  background: linear-gradient(120deg, #1e1b4b, #4c1d95);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(49, 46, 129, 0.3);
+}
+.recapBanner .dailyBannerIcon { background: rgba(255, 255, 255, 0.14); }
+.recapBanner .dailyBannerCopy strong { color: #c4b5fd; }
+.recapBanner .dailyBannerGo { background: #fff; color: #312e81; }

@@ -1,5 +1,5 @@
 const express = require('express');
-const { sendMorningNotes, sendAwayNotes } = require('../lib/morning');
+const { sendMorningNotes, sendAwayNotes, sendEveningNotes } = require('../lib/morning');
 const { settleDueBets } = require('../lib/bets');
 const { getIo } = require('../socket');
 
@@ -18,6 +18,17 @@ router.get('/daily', async (req, res, next) => {
   if (!allowed(req)) return res.status(401).json({ error: 'Not allowed' });
   try {
     await Promise.allSettled([sendMorningNotes(), sendAwayNotes(), settleDueBets(getIo())]);
+    res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Evening check-in reminders (Vercel Cron, 19:00 UTC).
+router.get('/evening', async (req, res, next) => {
+  if (!allowed(req)) return res.status(401).json({ error: 'Not allowed' });
+  try {
+    await sendEveningNotes();
     res.json({ ok: true });
   } catch (error) {
     next(error);

@@ -14,8 +14,10 @@ import { noteAudio, playMessageNote, playSendTick } from "@/lib/note";
 import StreakScreen from "./StreakScreen";
 import SnapCamera from "./SnapCamera";
 import DailyQuestion from "./DailyQuestion";
+import DayRecap from "./DayRecap";
 import { sendNudge } from "./HeartBurst";
 import { useDaily } from "@/hooks/useDaily";
+import { useRecap } from "@/hooks/useRecap";
 import { saveMedia } from "@/lib/saveMedia";
 import ViewOnceIcon from "./ViewOnceIcon";
 import VoicePlayer from "./VoicePlayer";
@@ -178,6 +180,8 @@ export default function ChatView({ onBack }: Props) {
   const swipeRef = useRef<{ x: number; y: number; at: number; active: boolean; locked: boolean } | null>(null);
   const { daily, answer: answerDaily } = useDaily();
   const [showDaily, setShowDaily] = useState(false);
+  const { recap, evening, share: shareDay } = useRecap();
+  const [showRecap, setShowRecap] = useState(false);
   const lastTap = useRef<{ id: string; at: number }>({ id: "", at: 0 });
   const [replyingToMsg, setReplyingToMsg] = useState<Message | null>(null);
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
@@ -823,7 +827,7 @@ export default function ChatView({ onBack }: Props) {
 
   // Swipe left or right anywhere in the chat to go back to the chat list.
   const swipeBlocked = Boolean(
-    contextMenu || selectedIds || viewer || showCamera || showStreak || showDaily || draftMedia
+    contextMenu || selectedIds || viewer || showCamera || showStreak || showDaily || showRecap || draftMedia
     || call.phase !== "idle" || isRecording || partnerAvatarViewer || micAsk || showEmoji || reactPickerFor
     || showStickers || pasted,
   );
@@ -1215,7 +1219,16 @@ export default function ChatView({ onBack }: Props) {
         />
       )}
 
-      {daily && daily.mine === null && !selectedIds && (
+      {evening && recap && !recap.mine && !selectedIds ? (
+        <button type="button" className={`${styles.dailyBanner} ${styles.recapBanner}`} onClick={() => setShowRecap(true)}>
+          <span className={styles.dailyBannerIcon}>🌙</span>
+          <span className={styles.dailyBannerCopy}>
+            <strong>{recap.theyShared ? `${chatTitle} shared their day` : "Evening check-in"}</strong>
+            <span>How was your day? Tell {chatTitle}</span>
+          </span>
+          <span className={styles.dailyBannerGo}>Share</span>
+        </button>
+      ) : daily && daily.mine === null && !selectedIds && (
         <button type="button" className={styles.dailyBanner} onClick={() => setShowDaily(true)}>
           <span className={styles.dailyBannerIcon}>💬</span>
           <span className={styles.dailyBannerCopy}>
@@ -1224,6 +1237,10 @@ export default function ChatView({ onBack }: Props) {
           </span>
           <span className={styles.dailyBannerGo}>Answer</span>
         </button>
+      )}
+
+      {showRecap && (
+        <DayRecap recap={recap} partnerName={chatTitle} onShare={shareDay} onClose={() => setShowRecap(false)} />
       )}
 
       {showDaily && (

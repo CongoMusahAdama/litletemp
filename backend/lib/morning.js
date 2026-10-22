@@ -36,7 +36,34 @@ async function greet(user, partner, today) {
   });
 }
 
-module.exports = { sendMorningNotes, sendAwayNotes };
+module.exports = { sendMorningNotes, sendAwayNotes, sendEveningNotes };
+
+// Evening check-in reminder for anyone who hasn't shared how their day went yet.
+async function sendEveningNotes() {
+  const DayRecap = require('../models/DayRecap');
+  const today = new Date().toISOString().slice(0, 10);
+  const couples = await Couple.find({ status: 'active', partner2: { $ne: null } });
+  for (const couple of couples) {
+    const recaps = await DayRecap.find({ coupleId: couple._id, day: today });
+    const shared = new Set(recaps.map((recap) => String(recap.userId)));
+    const people = await User.find({ _id: { $in: [couple.partner1, couple.partner2] } });
+    for (const user of people) {
+      if (shared.has(String(user._id))) continue;
+      if (user.notifications === false || !user.pushSubscriptions?.length) continue;
+      const partner = people.find((person) => String(person._id) !== String(user._id));
+      const name = partner ? (partner.username || partner.name) : 'your person';
+      const partnerShared = partner && shared.has(String(partner._id));
+      await deliver(user, {
+        kind: 'recap',
+        title: '🌙 How was your day?',
+        body: partnerShared
+          ? `${name} already shared theirs. Share yours to read it.`
+          : `Tell ${name} about your day. It only takes a minute.`,
+        icon: partner ? iconFor(partner) : undefined,
+      });
+    }
+  }
+}
 
 async function sendAwayNotes() {
   await withLock('away-notes', 14 * 60 * 1000, () => sendAwayBody());
