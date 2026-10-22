@@ -501,6 +501,17 @@ export default function JournalTab({ triggerNewEntry }: Props) {
             <div className={styles.modalHeader}>
               <span className={styles.detailDate}>{openEntry.date}</span>
               <div className={styles.detailActions}>
+                {/* Edit / delete: only on entries you wrote */}
+                {String(openEntry.authorId) === String(user?.id) && (
+                  <>
+                    <button type="button" className={styles.entryEdit} onClick={() => startEdit(openEntry)} aria-label="Edit entry">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>
+                    </button>
+                    <button type="button" className={styles.entryDelete} onClick={() => setConfirmDelete(true)} aria-label="Delete entry">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
+                    </button>
+                  </>
+                )}
                 <button type="button" className={styles.detailHeart} onClick={() => void toggleFavorite(openEntry)} aria-label="Save memory">
                   {openEntry.favorite ? "♥" : "♡"}
                 </button>
@@ -511,6 +522,17 @@ export default function JournalTab({ triggerNewEntry }: Props) {
                 </button>
               </div>
             </div>
+            {confirmDelete && (
+              <div className={styles.confirmRow}>
+                <p>Delete this entry for both of you? This can&apos;t be undone.</p>
+                <div>
+                  <button type="button" className={styles.confirmCancel} onClick={() => setConfirmDelete(false)} disabled={deleting}>Keep it</button>
+                  <button type="button" className={styles.confirmDelete} onClick={() => void deleteEntry(openEntry)} disabled={deleting}>
+                    {deleting ? <span className={styles.spinnerLight} aria-hidden="true" /> : "Delete"}
+                  </button>
+                </div>
+              </div>
+            )}
             <h2 className={styles.detailTitle}>{openEntry.title}</h2>
             {openEntry.text
               ? <p className={styles.detailText}>{openEntry.text}</p>
@@ -525,31 +547,6 @@ export default function JournalTab({ triggerNewEntry }: Props) {
               </div>
             )}
 
-            {/* Edit / delete: only on entries you wrote */}
-            {String(openEntry.authorId) === String(user?.id) && (
-              confirmDelete ? (
-                <div className={styles.confirmRow}>
-                  <p>Delete this entry for both of you? This can&apos;t be undone.</p>
-                  <div>
-                    <button type="button" className={styles.confirmCancel} onClick={() => setConfirmDelete(false)} disabled={deleting}>Keep it</button>
-                    <button type="button" className={styles.confirmDelete} onClick={() => void deleteEntry(openEntry)} disabled={deleting}>
-                      {deleting ? <span className={styles.spinnerLight} aria-hidden="true" /> : "Delete"}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className={styles.entryActions}>
-                  <button type="button" className={styles.entryEdit} onClick={() => startEdit(openEntry)}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>
-                    Edit
-                  </button>
-                  <button type="button" className={styles.entryDelete} onClick={() => setConfirmDelete(true)}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
-                    Delete
-                  </button>
-                </div>
-              )
-            )}
           </div>
         </div>
       )}

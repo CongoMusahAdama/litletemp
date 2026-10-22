@@ -5,6 +5,14 @@ export type Release = { id: string; date: string; title: string; items: ReleaseI
 
 export const RELEASES: Release[] = [
   {
+    id: "2026-10-22.4",
+    date: "22 October 2026",
+    title: "Easier journal editing",
+    items: [
+      { icon: "✏️", title: "Edit and delete up top", text: "Open an entry you wrote and find the edit and delete buttons at the top, next to the heart." },
+    ],
+  },
+  {
     id: "2026-10-22.3",
     date: "22 October 2026",
     title: "Evening check-in 🌙",
